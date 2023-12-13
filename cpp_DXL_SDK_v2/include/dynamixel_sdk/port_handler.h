@@ -46,7 +46,7 @@
 #endif
 
 #include <stdint.h>
-#include "cpp_Uart.h"
+#include "../../../../cpp_Uart_Class_v2/UART_Class.h"
 
 namespace dynamixel
 {
