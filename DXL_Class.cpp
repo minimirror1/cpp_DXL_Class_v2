@@ -8,22 +8,41 @@
 //init
 void DXL_motor::setSettingInfo(uint8_t dir, uint16_t angle, uint16_t initPosi, uint16_t reducer_ratio)
 {
+	operatingStatus_ = Status_SettingInfo;
 
+	setting_.dir = dir;
+	setting_.angle = angle;
+	setting_.initPosi = initPosi;
+	setting_.reducer_ratio = reducer_ratio;
+}
+
+void DXL_motor::setSettingData_op(uint32_t data_1, uint32_t data_2)
+{
+	if(operatingStatus_ == Status_SettingInfo){
+		operatingStatus_ = Status_SettingData_op;
+
+		dxl_setting_.homeCnt_ = data_1;
+
+		int tempLimitPosi = setting_.angle/360 * DXL_MAX_POSI;
+		dxl_setting_.rangeCnt_ = (setting_.dir == DXL_ROT_CW)? tempLimitPosi : -tempLimitPosi;
+	}
 }
 
 //control
 void DXL_motor::setPosition(uint16_t targetPosition)
 {
+	if(!f_assign) return;
 
+	float ratio = (float)targetPosition/4095;
+	monitor_.raw_command_posi = dxl_setting_.homeCnt_ + (dxl_setting_.rangeCnt_ * ratio);
+	packetHandler_->write4ByteTxOnly(portHandler_, sID_, ADDR_PRO_GOAL_POSITION, monitor_.raw_command_posi);
 }
-
 
 /* output 필수 기능*/
 uint16_t DXL_motor::getPosition() const
 {
     return 0;
 }
-
 
 /* 공통 funtion */
 void DXL_motor::init()
@@ -67,7 +86,30 @@ void DXL_motor::init()
 
 
 }
-void DXL_motor::defaultPosi()
-{
 
+void DXL_motor::defaultPosi_Ready()
+{
+	if(operatingStatus_ == Status_PreRun){
+		operatingStatus_ = Status_PosiSync_Ready;
+
+		curve_.Curve_Clear();
+
+		int32_t targetCnt = (float)dxl_setting_.homeCnt_ + (dxl_setting_.rangeCnt_ * (float)setting_.initPosi/4095);
+		curve_.Curve_Init(monitor_.raw_current_posi, targetCnt, 5000, 20);
+	}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
