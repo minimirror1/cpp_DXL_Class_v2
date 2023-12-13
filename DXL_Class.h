@@ -1,3 +1,13 @@
+/*
+ * DXL_Class.h
+ *
+ *  Created on: Dec 13, 2023
+ *      Author: minim
+ */
+
+#ifndef INC_DXL_Class_H_
+#define INC_DXL_Class_H_
+
 #include "cpp_Motor_Class_v2/Motor.h"
 
 class DXL_motor : public Motor {
@@ -22,3 +32,4 @@ public:
 private:
 
 };
+#endif /* INC_DXL_Class_H_ */
