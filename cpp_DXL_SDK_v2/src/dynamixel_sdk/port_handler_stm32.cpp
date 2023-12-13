@@ -16,7 +16,7 @@
 
 #include "../../include/dynamixel_sdk/port_handler_stm32.h"
 
-#include "cpp_serial.h"
+#include "../../../../cpp_Uart_Class_v2/UART_Class.h" //외부 종속성
 #include "cmsis_os.h"
 
 #define LATENCY_TIMER     4  // msec (USB latency timer)

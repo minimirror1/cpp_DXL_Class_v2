@@ -11,7 +11,7 @@
 
 #include "port_handler.h"
 
-#include "cpp_serial.h"
+#include "../../../../cpp_Uart_Class_v2/UART_Class.h"//외부 종속성
 
 namespace dynamixel
 {
