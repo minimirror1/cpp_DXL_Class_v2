@@ -9,6 +9,7 @@
 #define INC_DXL_Class_H_
 
 #include "cpp_Motor_Class_v2/Motor.h"
+#include "DynamixelSDK.h"
 
 class DXL_motor : public Motor {
 public:
