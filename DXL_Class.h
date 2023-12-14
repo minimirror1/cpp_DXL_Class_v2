@@ -42,20 +42,19 @@ public:
     /* Motor Class 상속 */
     /* input 필수 기능 */
     /* init */
-    void setSettingInfo(uint8_t dir, uint16_t angle, uint16_t initPosi, uint16_t reducer_ratio) override;
     void setSettingData_op(uint32_t data_1, uint32_t data_2) override;
 
     /* control */
-    void setPosition(uint16_t targetPosition) override;
+    void setPosition(uint16_t targetPosition) override;		//MRS motion count 동작
 
-    void setRawPosition(int32_t targetPosition) override;
+    void setRawPosition(int32_t targetPosition) override;	//motor raw count 동작
 
     /* output 필수 기능*/
-    uint16_t getPosition() const override ;//const 상태변경x 읽기전용
+    uint16_t getPosition() const override ; 	//const 상태변경x 읽기전용
     int32_t getDefaultPosi() const override ;
 
     /* 공통 funtion */
-    void init() override;
+    void init() override;		//Motor Active
 
 private:
     /* 속성 */

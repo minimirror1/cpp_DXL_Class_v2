@@ -20,18 +20,6 @@ DXL_motor::DXL_motor(uint8_t gID, uint8_t sID, MotorType motorType, Serial *seri
 /* Motor Class 상속 */
 /* input 필수 기능 */
 //init
-void DXL_motor::setSettingInfo(uint8_t dir, uint16_t angle, uint16_t initPosi, uint16_t reducer_ratio)
-{
-	if(operatingStatus_ == Status_PreRun){
-		operatingStatus_ = Status_SettingInfo;
-
-		setting_.dir = dir;
-		setting_.angle = angle;
-		setting_.initPosi = initPosi;
-		setting_.reducer_ratio = reducer_ratio;
-	}
-}
-
 void DXL_motor::setSettingData_op(uint32_t data_1, uint32_t data_2)
 {
 	if(operatingStatus_ == Status_SettingInfo){
@@ -51,6 +39,8 @@ void DXL_motor::setPosition(uint16_t targetPosition)
 {
 	if(!f_assign) return;
 
+	monitor_.mrs_current_posi = targetPosition;
+
 	float ratio = (float)targetPosition/4095;
 	monitor_.raw_command_posi = dxl_setting_.homeCnt_ + (dxl_setting_.rangeCnt_ * ratio);
 	packetHandler_->write4ByteTxOnly(portHandler_, sID_, ADDR_PRO_GOAL_POSITION, monitor_.raw_command_posi);
@@ -65,7 +55,6 @@ void DXL_motor::setRawPosition(int32_t targetPosition){
 /* output 필수 기능*/
 uint16_t DXL_motor::getPosition() const
 {
-
     return monitor_.raw_current_posi;
 }
 int32_t DXL_motor::getDefaultPosi() const
