@@ -3,17 +3,33 @@
 #include "DXL_Protocol.h"
 #include "DXL_Class.h"
 
+
+DXL_motor::DXL_motor(uint8_t gID, uint8_t sID, MotorType motorType, Serial *serial) :
+	Motor(gID, sID, motorType){
+	// Set IDs and other parameters for DXL_motor
+	f_assign = false;
+	operatingStatus_ = Status_None;
+
+	serial_= serial;
+	protocol_version_ = PROTOCOL_VERSION2;
+
+	portHandler_ = dynamixel::PortHandler::getPortHandler(DEVICENAME, serial_);
+	packetHandler_ = dynamixel::PacketHandler::getPacketHandler(protocol_version_);
+}
+
 /* Motor Class 상속 */
 /* input 필수 기능 */
 //init
 void DXL_motor::setSettingInfo(uint8_t dir, uint16_t angle, uint16_t initPosi, uint16_t reducer_ratio)
 {
-	operatingStatus_ = Status_SettingInfo;
+	if(operatingStatus_ == Status_PreRun){
+		operatingStatus_ = Status_SettingInfo;
 
-	setting_.dir = dir;
-	setting_.angle = angle;
-	setting_.initPosi = initPosi;
-	setting_.reducer_ratio = reducer_ratio;
+		setting_.dir = dir;
+		setting_.angle = angle;
+		setting_.initPosi = initPosi;
+		setting_.reducer_ratio = reducer_ratio;
+	}
 }
 
 void DXL_motor::setSettingData_op(uint32_t data_1, uint32_t data_2)
@@ -25,6 +41,8 @@ void DXL_motor::setSettingData_op(uint32_t data_1, uint32_t data_2)
 
 		int tempLimitPosi = setting_.angle/360 * DXL_MAX_POSI;
 		dxl_setting_.rangeCnt_ = (setting_.dir == DXL_ROT_CW)? tempLimitPosi : -tempLimitPosi;
+
+		f_assign = true;
 	}
 }
 
@@ -38,17 +56,28 @@ void DXL_motor::setPosition(uint16_t targetPosition)
 	packetHandler_->write4ByteTxOnly(portHandler_, sID_, ADDR_PRO_GOAL_POSITION, monitor_.raw_command_posi);
 }
 
+void DXL_motor::setRawPosition(int32_t targetPosition){
+	if(!f_assign) return;
+	monitor_.raw_command_posi = targetPosition;
+	packetHandler_->write4ByteTxOnly(portHandler_, sID_, ADDR_PRO_GOAL_POSITION, targetPosition);
+}
+
 /* output 필수 기능*/
 uint16_t DXL_motor::getPosition() const
 {
-    return 0;
+
+    return monitor_.raw_current_posi;
 }
+int32_t DXL_motor::getDefaultPosi() const
+{
+    int32_t cntCalc = (float)dxl_setting_.homeCnt_ + (dxl_setting_.rangeCnt_ * (float)setting_.initPosi/4095);
+    return cntCalc;
+}
+
 
 /* 공통 funtion */
 void DXL_motor::init()
 {
-	if(!f_assign) return;
-
 	int dxl_comm_result = COMM_SUCCESS;
 	uint8_t dxl_error = 0;
 
@@ -86,22 +115,6 @@ void DXL_motor::init()
 
 
 }
-
-void DXL_motor::defaultPosi_Ready()
-{
-	if(operatingStatus_ == Status_PreRun){
-		operatingStatus_ = Status_PosiSync_Ready;
-
-		curve_.Curve_Clear();
-
-		int32_t targetCnt = (float)dxl_setting_.homeCnt_ + (dxl_setting_.rangeCnt_ * (float)setting_.initPosi/4095);
-		curve_.Curve_Init(monitor_.raw_current_posi, targetCnt, 5000, 20);
-	}
-}
-
-
-
-
 
 
 

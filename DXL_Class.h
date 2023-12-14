@@ -14,6 +14,8 @@
 #include "cpp_DXL_SDK_v2/src/DynamixelSDK.h"
 #include "DXL_Protocol.h"
 
+#include "UART_Class.h"
+
 
 /* 한바퀴 최대 카운트 */
 #define DXL_MAX_POSI	4095
@@ -32,9 +34,9 @@ public:
 		int32_t rangeCnt_;	//동작 각도 Cnt 환산
 	};
 
-    DXL_motor(uint8_t gID, uint8_t sID, MotorType motorType) :
-    	Motor(gID, sID, motorType){
-        // Set IDs and other parameters for DXL_motor
+    DXL_motor(uint8_t gID, uint8_t sID, MotorType motorType, Serial *serial);
+
+    virtual ~DXL_motor() {
     }
 
     /* Motor Class 상속 */
@@ -46,17 +48,21 @@ public:
     /* control */
     void setPosition(uint16_t targetPosition) override;
 
+    void setRawPosition(int32_t targetPosition) override;
+
     /* output 필수 기능*/
     uint16_t getPosition() const override ;//const 상태변경x 읽기전용
+    int32_t getDefaultPosi() const override ;
 
     /* 공통 funtion */
     void init() override;
-    void defaultPosi_Ready() override;
-    void defaultPosi_Move() override;
 
 private:
     /* 속성 */
 	bool f_assign;	//true : 할당됨, false : 할당안됨
+
+	Serial *serial_;
+	float protocol_version_;
 	dynamixel::PortHandler *portHandler_;
 	dynamixel::PacketHandler *packetHandler_;
 
