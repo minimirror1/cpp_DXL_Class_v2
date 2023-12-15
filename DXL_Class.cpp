@@ -25,7 +25,7 @@ void DXL_motor::setSettingData_op(uint8_t gID, uint8_t sID, uint32_t data_1, uin
 	if(id_check(gID, sID) == false)
 		return;
 
-	if(operatingStatus_ == Status_SettingInfo){
+	//if(operatingStatus_ == Status_SettingInfo){
 		operatingStatus_ = Statis_SettingOk;
 
 		dxl_setting_.homeCnt_ = data_1;
@@ -34,7 +34,7 @@ void DXL_motor::setSettingData_op(uint8_t gID, uint8_t sID, uint32_t data_1, uin
 		dxl_setting_.rangeCnt_ = (setting_.dir == DXL_ROT_CW)? tempLimitPosi : -tempLimitPosi;
 
 		f_assign = true;
-	}
+	//}
 }
 
 //control
@@ -75,13 +75,22 @@ void DXL_motor::init()
 
 	operatingStatus_ = Status_Init;
 
+	//led off
+	packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_LED, 0, &dxl_error);
+	osDelay(10);
+	packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_LED, 0, &dxl_error);
+	osDelay(10);
 	//rs485 응답 lv - 2 : 모든 패킷에 응답
 	packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_STATUS_RETURN_LV, 2, &dxl_error);
 	//torque off
-	dxl_comm_result = packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_TORQUE_ENABLE, TORQUE_DISABLE, &dxl_error);
-	if(dxl_comm_result != COMM_SUCCESS)
-		operatingStatus_ = Status_InitError;
-
+    for (int retryCount = 0; retryCount < 5; ++retryCount) {
+        dxl_comm_result = packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_TORQUE_ENABLE, TORQUE_DISABLE, &dxl_error);
+        if (dxl_comm_result == COMM_SUCCESS) {
+            break; // 성공하면 루프 탈출
+        } else {
+            osDelay(10); // 실패한 경우 재시도 전에 딜레이 추가 (필요에 따라 조정)
+        }
+    }
 
 	//drive mode(10) - 0x04 : Time-based Profile
 	packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_DRIVE_MODE, 4, &dxl_error);
@@ -106,6 +115,8 @@ void DXL_motor::init()
 
 	if(operatingStatus_ == Status_Init)
 		operatingStatus_ = Status_PreRun;
+
+	packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_LED, 1, &dxl_error);
 
 
 }

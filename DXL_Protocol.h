@@ -24,6 +24,7 @@
 #define ADDR_PRO_VELOCITY				112
 
 #define ADDR_PRO_TORQUE_ENABLE          64
+#define ADDR_PRO_LED					65
 #define ADDR_PRO_GOAL_POSITION          116
 #define ADDR_PRO_PRESENT_POSITION       132
 

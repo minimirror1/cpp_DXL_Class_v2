@@ -56,9 +56,9 @@ public:
     }
 
     // 특정 DXL_Class 객체의 위치 설정 함수 호출
-    void setPosition(uint16_t targetPosition, size_t index) {
-        if (0 < index && index < maxSize) {
-            dxlObjects[index]->setPosition(targetPosition);
+    void setPosition(uint8_t sid, uint16_t targetPosition ) {
+    	if (0 < sid && sid < maxSize) {
+            dxlObjects[sid]->setPosition(targetPosition);
         } else {
             //std::cout << "Invalid index!" << std::endl;
         }
