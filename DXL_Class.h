@@ -42,7 +42,7 @@ public:
     /* Motor Class 상속 */
     /* input 필수 기능 */
     /* init */
-    void setSettingData_op(uint32_t data_1, uint32_t data_2) override;
+    void setSettingData_op(uint8_t gID, uint8_t sID, uint32_t data_1, uint32_t data_2) override;
 
     /* control */
     void setPosition(uint16_t targetPosition) override;		//MRS motion count 동작
@@ -55,6 +55,7 @@ public:
 
     /* 공통 funtion */
     void init() override;		//Motor Active
+
 
 private:
     /* 속성 */
