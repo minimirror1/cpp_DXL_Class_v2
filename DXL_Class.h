@@ -17,6 +17,10 @@
 #include "UART_Class.h"
 
 
+//#define DXLLIB_VERSION "0.0.1"	//
+#define DXLLIB_VERSION "0.0.2"	//버전, Jog 기능 추가
+
+
 /* 한바퀴 최대 카운트 */
 #define DXL_MAX_POSI	4095
 /* Home 방향 표기*/
@@ -39,6 +43,15 @@ public:
     virtual ~DXL_motor() {
     }
 
+    void getDriverVersion(char *major, char *minor, char *patch){
+    	int majorNum, minorNum, patchNum;
+		sscanf(DXLLIB_VERSION, "%d.%d.%d", &majorNum, &minorNum, &patchNum);
+
+		sprintf(major, "%d", majorNum);
+		sprintf(minor, "%d", minorNum);
+		sprintf(patch, "%d", patchNum);
+    }
+
     /* Motor Class 상속 */
     /* input 필수 기능 */
     /* init */
@@ -49,8 +62,10 @@ public:
 
     void setRawPosition(int32_t targetPosition) override;	//motor raw count 동작
 
+    void setJogMove(int jogCounter) override;				//motor jog move 동작
+
     /* output 필수 기능*/
-    uint16_t getPosition() const override ; 	//const 상태변경x 읽기전용
+    uint16_t getCurrentPosition() const override ; 	//const 상태변경x 읽기전용
     int32_t getDefaultPosi() const override ;
 
     /* 공통 funtion */

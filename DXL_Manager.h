@@ -64,6 +64,14 @@ public:
         }
     }
 
+    void setJogMove(uint8_t sid, int32_t jogCounter ) {
+		if (0 < sid && sid < maxSize) {
+			dxlObjects[sid]->setJogMove(jogCounter);
+		} else {
+			//std::cout << "Invalid index!" << std::endl;
+		}
+	}
+
     void allMotorProcess(void){
     	for (size_t i = 1; i < maxSize; i++) {
 			dxlObjects[i]->process();
