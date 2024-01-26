@@ -78,6 +78,12 @@ public:
 		}
     }
 
+    void allTimeCheckPosi(void){
+    	for (size_t i = 1; i < maxSize; i++) {
+			dxlObjects[i]->timeCheckPosition();
+		}
+    }
+
 
     /* index */
     Motor::Status getStatus(uint8_t gid, uint8_t sid){
