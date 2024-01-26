@@ -111,9 +111,9 @@ void DXL_motor::init()
 	packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_DRIVE_MODE, 4, &dxl_error);
 	//overating mode(11) - 0x03 : Position control
 	packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_OPERATING_MODE, 3, &dxl_error);
-	//profile acc(108) - 250 : 가속 목표 시간 25ms
+	//profile acc(108) - 25 : 가속 목표 시간 25ms
 	packetHandler_->write4ByteTxRx(portHandler_, sID_, ADDR_PRO_ACCELE, 25, &dxl_error);
-	//profile velocity(112) - 500 : 도달 목표 시간 50ms
+	//profile velocity(112) - 50 : 도달 목표 시간 50ms
 	packetHandler_->write4ByteTxRx(portHandler_, sID_, ADDR_PRO_VELOCITY, 50, &dxl_error);
 	//torque on
 	dxl_comm_result = packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_TORQUE_ENABLE, TORQUE_ENABLE, &dxl_error);
