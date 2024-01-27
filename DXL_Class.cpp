@@ -100,7 +100,15 @@ uint16_t DXL_motor::getCurrentPosition() const
 {
 	uint8_t dxl_error = 0;
 	int dxl_comm_result = COMM_SUCCESS;
-	dxl_comm_result = packetHandler_->read4ByteTxRx(portHandler_, sID_, ADDR_PRO_PRESENT_POSITION,(uint32_t*)&monitor_.raw_current_posi, &dxl_error);
+    for (int retryCount = 0; retryCount < 5; ++retryCount) {
+        dxl_comm_result = packetHandler_->read4ByteTxRx(portHandler_, sID_, ADDR_PRO_PRESENT_POSITION,(uint32_t*)&monitor_.raw_current_posi, &dxl_error);
+        if (dxl_comm_result == COMM_SUCCESS) {
+            break; // 성공하면 루프 탈출
+        } else {
+            osDelay(10); // 실패한 경우 재시도 전에 딜레이 추가 (필요에 따라 조정)
+        }
+    }
+
     return monitor_.raw_current_posi;
 }
 int32_t DXL_motor::getDefaultPosi() const
@@ -136,34 +144,93 @@ void DXL_motor::init()
     }
 
 	//drive mode(10) - 0x04 : Time-based Profile
-	packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_DRIVE_MODE, 4, &dxl_error);
+    for (int retryCount = 0; retryCount < 5; ++retryCount) {
+        dxl_comm_result = packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_DRIVE_MODE, 4, &dxl_error);
+        if (dxl_comm_result == COMM_SUCCESS) {
+            break; // 성공하면 루프 탈출
+        } else {
+            osDelay(10); // 실패한 경우 재시도 전에 딜레이 추가 (필요에 따라 조정)
+        }
+    }
+
 	//overating mode(11) - 0x03 : Position control
-	packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_OPERATING_MODE, 3, &dxl_error);
-	//profile acc(108) - 250 : 가속 목표 시간 25ms
-	packetHandler_->write4ByteTxRx(portHandler_, sID_, ADDR_PRO_ACCELE, 25, &dxl_error);
-	//profile velocity(112) - 500 : 도달 목표 시간 50ms
-	packetHandler_->write4ByteTxRx(portHandler_, sID_, ADDR_PRO_VELOCITY, 50, &dxl_error);
+    for (int retryCount = 0; retryCount < 5; ++retryCount) {
+        dxl_comm_result = packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_OPERATING_MODE, 3, &dxl_error);
+        if (dxl_comm_result == COMM_SUCCESS) {
+            break; // 성공하면 루프 탈출
+        } else {
+            osDelay(10); // 실패한 경우 재시도 전에 딜레이 추가 (필요에 따라 조정)
+        }
+    }
+
+	//profile acc(108) - 25 : 가속 목표 시간 25ms
+    for (int retryCount = 0; retryCount < 5; ++retryCount) {
+		dxl_comm_result = packetHandler_->write4ByteTxRx(portHandler_, sID_, ADDR_PRO_ACCELE, 25, &dxl_error);
+		if (dxl_comm_result == COMM_SUCCESS) {
+			break; // 성공하면 루프 탈출
+		} else {
+			osDelay(10); // 실패한 경우 재시도 전에 딜레이 추가 (필요에 따라 조정)
+		}
+	}
+
+	//profile velocity(112) - 50 : 도달 목표 시간 50ms
+    for (int retryCount = 0; retryCount < 5; ++retryCount) {
+		dxl_comm_result = packetHandler_->write4ByteTxRx(portHandler_, sID_, ADDR_PRO_VELOCITY, 50, &dxl_error);
+		if (dxl_comm_result == COMM_SUCCESS) {
+			break; // 성공하면 루프 탈출
+		} else {
+			osDelay(10); // 실패한 경우 재시도 전에 딜레이 추가 (필요에 따라 조정)
+		}
+	}
+
 	//torque on
-	dxl_comm_result = packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_TORQUE_ENABLE, TORQUE_ENABLE, &dxl_error);
-	if(dxl_comm_result != COMM_SUCCESS)
-		operatingStatus_ = Status_InitError;
+    for (int retryCount = 0; retryCount < 5; ++retryCount) {
+    	dxl_comm_result = packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_TORQUE_ENABLE, TORQUE_ENABLE, &dxl_error);
+		if (dxl_comm_result == COMM_SUCCESS) {
+			break; // 성공하면 루프 탈출
+		} else {
+			if(retryCount >= 4)
+				operatingStatus_ = Status_InitError;
+			osDelay(10); // 실패한 경우 재시도 전에 딜레이 추가 (필요에 따라 조정)
+		}
+	}
 
 	osDelay(10);
-	dxl_comm_result = packetHandler_->read4ByteTxRx(portHandler_, sID_, ADDR_PRO_PRESENT_POSITION,(uint32_t*)&monitor_.raw_current_posi, &dxl_error);
-	if(dxl_comm_result != COMM_SUCCESS)
-		operatingStatus_ = Status_InitError;
-	monitor_.raw_command_posi = monitor_.raw_current_posi;	//current position을 동기화
 
+
+	for (int retryCount = 0; retryCount < 5; ++retryCount) {
+		dxl_comm_result = packetHandler_->read4ByteTxRx(portHandler_, sID_, ADDR_PRO_PRESENT_POSITION,(uint32_t*)&monitor_.raw_current_posi, &dxl_error);
+		if (dxl_comm_result == COMM_SUCCESS) {
+			monitor_.raw_command_posi = monitor_.raw_current_posi;
+			break; // 성공하면 루프 탈출
+		} else {
+			if(retryCount >= 4)
+				operatingStatus_ = Status_InitError;
+			osDelay(10); // 실패한 경우 재시도 전에 딜레이 추가 (필요에 따라 조정)
+		}
+	}
 
 	//status return lv (68) - 1 : 읽기 명령에만 응답
-	packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_STATUS_RETURN_LV, 1, &dxl_error);
+	for (int retryCount = 0; retryCount < 5; ++retryCount) {
+		dxl_comm_result = packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_STATUS_RETURN_LV, 1, &dxl_error);
+		if (dxl_comm_result == COMM_SUCCESS) {
+			break; // 성공하면 루프 탈출
+		} else {
+			osDelay(10); // 실패한 경우 재시도 전에 딜레이 추가 (필요에 따라 조정)
+		}
+	}
 
-	if(operatingStatus_ == Status_Init)
+	if(operatingStatus_ == Status_Init){
 		operatingStatus_ = Status_PreRun;
-
-	packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_LED, 1, &dxl_error);
-
-
+		for (int retryCount = 0; retryCount < 5; ++retryCount) {
+			dxl_comm_result = packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_LED, 1, &dxl_error);
+			if (dxl_comm_result == COMM_SUCCESS) {
+				break; // 성공하면 루프 탈출
+			} else {
+				osDelay(10); // 실패한 경우 재시도 전에 딜레이 추가 (필요에 따라 조정)
+			}
+		}
+	}
 }
 
 
