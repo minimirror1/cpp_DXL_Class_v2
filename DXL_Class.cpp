@@ -45,9 +45,37 @@ void DXL_motor::setPosition(uint16_t targetPosition)
 	monitor_.mrs_current_posi = targetPosition;
 
 	float ratio = (float)targetPosition/4095;
-	monitor_.raw_command_posi = dxl_setting_.homeCnt_ + (dxl_setting_.rangeCnt_ * ratio);
-	packetHandler_->write4ByteTxOnly(portHandler_, sID_, ADDR_PRO_GOAL_POSITION, monitor_.raw_command_posi);
+	int temp_raw_posi = dxl_setting_.homeCnt_ + (dxl_setting_.rangeCnt_ * ratio);
+
+	if(monitor_.raw_command_posi != temp_raw_posi){
+		monitor_.raw_command_posi = temp_raw_posi;
+		packetHandler_->write4ByteTxOnly(portHandler_, sID_, ADDR_PRO_GOAL_POSITION, monitor_.raw_command_posi);
+	}
+
+#if 0
+	if(monitor_.raw_command_posi != temp_raw_posi){
+		if(com_limit.delay(50)){
+			monitor_.raw_command_posi = temp_raw_posi;
+			packetHandler_->write4ByteTxOnly(portHandler_, sID_, ADDR_PRO_GOAL_POSITION, monitor_.raw_command_posi);
+		}
+	}
+#endif
 }
+
+void DXL_motor::timeCheckPosition(){
+	if(!f_assign) return;
+
+	if(com_limit.delay(50)){
+		float ratio = (float)monitor_.mrs_current_posi/4095;
+		int temp_raw_posi = dxl_setting_.homeCnt_ + (dxl_setting_.rangeCnt_ * ratio);
+
+		if(monitor_.raw_command_posi != temp_raw_posi){
+			monitor_.raw_command_posi = temp_raw_posi;
+			packetHandler_->write4ByteTxOnly(portHandler_, sID_, ADDR_PRO_GOAL_POSITION, monitor_.raw_command_posi);
+		}
+	}
+}
+
 
 void DXL_motor::setRawPosition(int32_t targetPosition){
 	if(!f_assign) return;

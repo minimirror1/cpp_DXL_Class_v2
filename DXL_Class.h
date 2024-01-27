@@ -16,6 +16,8 @@
 
 #include "UART_Class.h"
 
+#include "../cpp_tick/cpp_tick.h"
+
 
 //#define DXLLIB_VERSION "0.0.1"	//
 #define DXLLIB_VERSION "0.0.2"	//버전, Jog 기능 추가
@@ -60,6 +62,8 @@ public:
     /* control */
     void setPosition(uint16_t targetPosition) override;		//MRS motion count 동작
 
+    void timeCheckPosition();
+
     void setRawPosition(int32_t targetPosition) override;	//motor raw count 동작
 
     void setJogMove(int jogCounter) override;				//motor jog move 동작
@@ -82,6 +86,8 @@ private:
 	dynamixel::PacketHandler *packetHandler_;
 
 	DXL_Setting dxl_setting_;
+
+	Tick com_limit;
 
 };
 #endif /* INC_DXL_Class_H_ */
