@@ -39,6 +39,12 @@ public:
             dxlObjects[i]->init();
         }
     }
+    void initializeAll_MultiTrun() {
+           for (size_t i = 1; i < 3; i++) {
+               dxlObjects[i]->multiTurnInit();
+           }
+       }
+
 
     // 모든 DXL_Class 객체의 위치 동기화 함수 호출
     void syncAllPositions() {
@@ -62,6 +68,13 @@ public:
         } else {
             //std::cout << "Invalid index!" << std::endl;
         }
+    }
+    void setRawPosition(uint8_t sid, int32_t rawCount){
+    	if (0 < sid && sid < maxSize) {
+			dxlObjects[sid]->setRawPosition(rawCount);
+		} else {
+			//std::cout << "Invalid index!" << std::endl;
+		}
     }
 
     void setJogMove(uint8_t sid, int32_t jogCounter ) {

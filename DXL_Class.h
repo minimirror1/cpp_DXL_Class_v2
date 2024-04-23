@@ -34,7 +34,7 @@ class DXL_motor : public Motor {
 public:
 	struct DXL_Setting{
 		/* 통신 수신 */
-		uint32_t homeCnt_;	//DXL 기어 . 기준 home 위치
+		int32_t homeCnt_;	//DXL 기어 . 기준 home 위치
 
 		/* 계산 */
 		int32_t rangeCnt_;	//동작 각도 Cnt 환산
@@ -60,7 +60,7 @@ public:
     void setSettingData_op(uint8_t gID, uint8_t sID, uint32_t data_1, uint32_t data_2) override;
 
     /* control */
-    void setPosition(uint16_t targetPosition) override;		//MRS motion count 동작
+    void setPosition(int32_t targetPosition) override;		//MRS motion count 동작
 
     void timeCheckPosition();
 
@@ -75,6 +75,7 @@ public:
     /* 공통 funtion */
     void init() override;		//Motor Active
 
+    void multiTurnInit();
 
 private:
     /* 속성 */
