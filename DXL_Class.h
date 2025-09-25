@@ -96,6 +96,12 @@ public:
     const char* getErrorCode() const { 
         return DXL_ErrorConverter::convertToErrorCode(error_status_); 
     }
+    
+    /* Phase 3: 실시간 모니터링 함수들 */
+    void performRuntimeErrorCheck();     // 런타임 에러 체크 (연결된 모터만)
+    bool checkStatusPacketError();       // Status Packet 에러 체크
+    bool checkHardwareErrorStatus();     // Hardware Error Status 체크
+    void updateErrorStatistics();        // 에러 통계 업데이트
 
 private:
     /* 속성 */

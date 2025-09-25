@@ -21,6 +21,17 @@
 #define DXL_ERROR_TIMEOUT_DISCONNECT_COUNT  5       // 타임아웃 시 연결 해제 판단 횟수
 #define DXL_ERROR_MAX_CONSECUTIVE_ERRORS    255     // 최대 연속 에러 횟수
 
+// Phase 3: 에러 로그 시스템 상수
+#define DXL_ERROR_LOG_MAX_ENTRIES           10      // 최대 에러 로그 항목 수
+#define DXL_ERROR_LOG_RETENTION_TIME        30000   // 에러 로그 보관 시간 (30초)
+
+// Phase 3 개선: 에러 우선순위 정의
+#define ERROR_PRIORITY_NONE                 0
+#define ERROR_PRIORITY_LOW                  1
+#define ERROR_PRIORITY_MEDIUM               2
+#define ERROR_PRIORITY_HIGH                 3
+#define ERROR_PRIORITY_CRITICAL             4
+
 // =============================================================================
 // 1. 통신 에러 (Communication Errors) - DXL SDK 결과 기반
 // =============================================================================
@@ -74,6 +85,31 @@ enum InitResult {
     INIT_PROTO_ERROR,       // 프로토콜 에러 -> Status_InitError
     INIT_TIMEOUT,           // 타임아웃 -> Status_InitError
     INIT_NOT_CONNECTED      // 모터 미연결 -> Status_InitError
+};
+
+// =============================================================================
+// 4. 에러 로그 항목 (Phase 3)
+// =============================================================================
+struct DXL_ErrorLogEntry {
+    uint32_t timestamp;         // 에러 발생 시간 (HAL_GetTick())
+    uint8_t motor_id;          // 모터 ID
+    DXL_CommError comm_error;  // 통신 에러
+    HardwareError hw_error;    // 하드웨어 에러
+    ProtocolError proto_error; // 프로토콜 에러
+    
+    // 초기화
+    void init(uint32_t time, uint8_t id, DXL_CommError comm, HardwareError hw, ProtocolError proto) {
+        timestamp = time;
+        motor_id = id;
+        comm_error = comm;
+        hw_error = hw;
+        proto_error = proto;
+    }
+    
+    // 로그 항목이 유효한지 확인 (보관 시간 내)
+    bool isValid(uint32_t current_time) const {
+        return (current_time - timestamp) < DXL_ERROR_LOG_RETENTION_TIME;
+    }
 };
 
 // =============================================================================
@@ -144,13 +180,82 @@ struct DXL_ErrorStatus {
     }
     
     // 연결 상태 업데이트
-    void updateConnectionStatus() {
-        if (comm_error == DXL_COMM_TIMEOUT || comm_error == DXL_COMM_RXFAIL) {
-            if (consecutive_errors > DXL_ERROR_TIMEOUT_DISCONNECT_COUNT) {
-                is_motor_connected = false;
+    void updateConnectionStatus(bool connected) {
+        is_motor_connected = connected;
+        if (!connected) {
+            consecutive_errors++;
+        }
+    }
+    
+    // Phase 3 개선: 에러 우선순위 기반 업데이트
+    void updateCommErrorWithPriority(DXL_CommError new_error) {
+        if (new_error != DXL_COMM_NONE) {
+            if (getCommErrorPriority(new_error) >= getCommErrorPriority(comm_error)) {
+                comm_error = new_error;
             }
-        } else if (comm_error == DXL_COMM_NONE) {
-            is_motor_connected = true;
+        }
+    }
+    
+    void updateHwErrorWithPriority(HardwareError new_error) {
+        if (new_error != HW_NONE) {
+            if (getHwErrorPriority(new_error) >= getHwErrorPriority(hw_error)) {
+                hw_error = new_error;
+            }
+        }
+    }
+    
+    void updateProtoErrorWithPriority(ProtocolError new_error) {
+        if (new_error != PROTO_NONE) {
+            if (getProtoErrorPriority(new_error) >= getProtoErrorPriority(proto_error)) {
+                proto_error = new_error;
+            }
+        }
+    }
+
+private:
+    // 통신 에러 우선순위 반환
+    uint8_t getCommErrorPriority(DXL_CommError error) const {
+        switch (error) {
+            case DXL_COMM_NONE:         return ERROR_PRIORITY_NONE;
+            case DXL_COMM_BUSY:         return ERROR_PRIORITY_LOW;
+            case DXL_COMM_TXFAIL:       return ERROR_PRIORITY_MEDIUM;
+            case DXL_COMM_RXFAIL:       return ERROR_PRIORITY_HIGH;
+            case DXL_COMM_TXERROR:      return ERROR_PRIORITY_MEDIUM;
+            case DXL_COMM_TIMEOUT:      return ERROR_PRIORITY_HIGH;
+            case DXL_COMM_CORRUPT:      return ERROR_PRIORITY_HIGH;
+            case DXL_COMM_NOT_AVAILABLE: return ERROR_PRIORITY_CRITICAL;
+            case DXL_COMM_UNKNOWN:      return ERROR_PRIORITY_MEDIUM;
+            default:                    return ERROR_PRIORITY_LOW;
+        }
+    }
+    
+    // 하드웨어 에러 우선순위 반환
+    uint8_t getHwErrorPriority(HardwareError error) const {
+        switch (error) {
+            case HW_NONE:           return ERROR_PRIORITY_NONE;
+            case HW_VOLTAGE:        return ERROR_PRIORITY_MEDIUM;
+            case HW_OVERHEATING:    return ERROR_PRIORITY_HIGH;
+            case HW_ENCODER:        return ERROR_PRIORITY_HIGH;
+            case HW_ELECTRICAL:     return ERROR_PRIORITY_CRITICAL;
+            case HW_OVERLOAD:       return ERROR_PRIORITY_CRITICAL;
+            case HW_READ_ERROR:     return ERROR_PRIORITY_MEDIUM;
+            case HW_UNKNOWN:        return ERROR_PRIORITY_MEDIUM;
+            default:                return ERROR_PRIORITY_LOW;
+        }
+    }
+    
+    // 프로토콜 에러 우선순위 반환
+    uint8_t getProtoErrorPriority(ProtocolError error) const {
+        switch (error) {
+            case PROTO_NONE:            return ERROR_PRIORITY_NONE;
+            case PROTO_RESULT_FAIL:     return ERROR_PRIORITY_LOW;
+            case PROTO_INSTRUCTION:     return ERROR_PRIORITY_MEDIUM;
+            case PROTO_CRC:             return ERROR_PRIORITY_HIGH;
+            case PROTO_DATA_RANGE:      return ERROR_PRIORITY_MEDIUM;
+            case PROTO_DATA_LENGTH:     return ERROR_PRIORITY_MEDIUM;
+            case PROTO_DATA_LIMIT:      return ERROR_PRIORITY_MEDIUM;
+            case PROTO_ACCESS:          return ERROR_PRIORITY_HIGH;
+            default:                    return ERROR_PRIORITY_LOW;
         }
     }
 };
@@ -218,5 +323,94 @@ Bit 2: Overheating Error
 Bit 1: 미사용
 Bit 0: Input Voltage Error
 */
+
+// =============================================================================
+// 6. 글로벌 에러 로그 시스템 (Phase 3)
+// =============================================================================
+class DXL_ErrorLogger {
+private:
+    static DXL_ErrorLogEntry log_entries_[DXL_ERROR_LOG_MAX_ENTRIES];
+    static uint8_t log_index_;
+    static uint8_t log_count_;
+
+public:
+    // Phase 3 개선: Thread-safe 에러 로그 추가
+    static void addErrorLog(uint8_t motor_id, DXL_CommError comm_error, 
+                           HardwareError hw_error, ProtocolError proto_error) {
+        // STM32에서 간단한 임계 영역 보호 (인터럽트 비활성화)
+        __disable_irq();
+        
+        uint32_t current_time = HAL_GetTick();
+        
+        // 순환 버퍼 방식으로 로그 저장
+        log_entries_[log_index_].init(current_time, motor_id, comm_error, hw_error, proto_error);
+        log_index_ = (log_index_ + 1) % DXL_ERROR_LOG_MAX_ENTRIES;
+        
+        if (log_count_ < DXL_ERROR_LOG_MAX_ENTRIES) {
+            log_count_++;
+        }
+        
+        __enable_irq();
+    }
+    
+    // 유효한 에러 로그 개수 반환
+    static uint8_t getValidLogCount() {
+        uint32_t current_time = HAL_GetTick();
+        uint8_t valid_count = 0;
+        
+        for (uint8_t i = 0; i < log_count_; i++) {
+            if (log_entries_[i].isValid(current_time)) {
+                valid_count++;
+            }
+        }
+        
+        return valid_count;
+    }
+    
+    // Phase 3 개선: 에러 로그 검색 최적화
+    static bool getRecentErrorLog(uint8_t motor_id, DXL_ErrorLogEntry* entry) {
+        uint32_t current_time = HAL_GetTick();
+        
+        // 최근 항목부터 역순 검색 (단순화된 인덱스 계산)
+        uint8_t search_count = (log_count_ < DXL_ERROR_LOG_MAX_ENTRIES) ? log_count_ : DXL_ERROR_LOG_MAX_ENTRIES;
+        
+        for (uint8_t i = 0; i < search_count; i++) {
+            // 최신 항목부터 역순으로 계산
+            uint8_t idx = (log_index_ + DXL_ERROR_LOG_MAX_ENTRIES - 1 - i) % DXL_ERROR_LOG_MAX_ENTRIES;
+            
+            if (log_entries_[idx].motor_id == motor_id && log_entries_[idx].isValid(current_time)) {
+                *entry = log_entries_[idx];
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    // Phase 3 개선: 모든 유효한 에러 로그 조회 (디버깅용)
+    static uint8_t getAllValidLogs(DXL_ErrorLogEntry* entries, uint8_t max_entries) {
+        uint32_t current_time = HAL_GetTick();
+        uint8_t found_count = 0;
+        uint8_t search_count = (log_count_ < DXL_ERROR_LOG_MAX_ENTRIES) ? log_count_ : DXL_ERROR_LOG_MAX_ENTRIES;
+        
+        for (uint8_t i = 0; i < search_count && found_count < max_entries; i++) {
+            uint8_t idx = (log_index_ + DXL_ERROR_LOG_MAX_ENTRIES - 1 - i) % DXL_ERROR_LOG_MAX_ENTRIES;
+            
+            if (log_entries_[idx].isValid(current_time)) {
+                entries[found_count++] = log_entries_[idx];
+            }
+        }
+        
+        return found_count;
+    }
+    
+    // Phase 3 개선: Thread-safe 로그 초기화
+    static void clearLogs() {
+        __disable_irq();
+        log_index_ = 0;
+        log_count_ = 0;
+        __enable_irq();
+    }
+};
 
 #endif /* CPP_DXL_CLASS_V2_DXL_ERRORTYPES_H_ */

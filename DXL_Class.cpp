@@ -146,6 +146,102 @@ void DXL_motor::init()
     // (기존 코드와 호환성 유지)
 }
 
+// =============================================================================
+// Phase 3: 실시간 모니터링 함수들 구현
+// =============================================================================
+
+void DXL_motor::performRuntimeErrorCheck() {
+    // 연결되지 않은 모터는 체크하지 않음
+    if (!error_status_.is_motor_connected || operatingStatus_ == Status_InitError) {
+        return;
+    }
+    
+    // 이전 에러 상태 저장
+    bool had_error_before = error_status_.hasError();
+    
+    // Status Packet 에러 체크
+    bool status_error = checkStatusPacketError();
+    
+    // Hardware Error Status 체크
+    bool hardware_error = checkHardwareErrorStatus();
+    
+    // Phase 3 개선: 에러 상태 변화 시 항상 통계 업데이트
+    bool has_error_now = error_status_.hasError();
+    if (status_error || hardware_error || had_error_before != has_error_now) {
+        updateErrorStatistics();
+    }
+}
+
+bool DXL_motor::checkStatusPacketError() {
+    // 간단한 읽기 명령으로 Status Packet 체크 (LED 상태 읽기)
+    uint8_t led_value = 0;
+    uint8_t dxl_error = 0;
+    int dxl_comm_result = packetHandler_->read1ByteTxRx(
+        portHandler_, sID_, ADDR_PRO_LED, &led_value, &dxl_error);
+    
+    // 통신 결과 분석
+    DXL_CommError comm_error = analyzeCommResult(dxl_comm_result);
+    ProtocolError proto_error = analyzeStatusPacketError(dxl_error);
+    
+    // Phase 3 개선: 에러 우선순위 기반 업데이트
+    error_status_.updateCommErrorWithPriority(comm_error);
+    error_status_.updateProtoErrorWithPriority(proto_error);
+    
+    // Alert 비트 상태 업데이트 (항상 최신 상태 반영)
+    error_status_.alert_bit_set = (dxl_error & 0x80) != 0;
+    
+    // 연결 상태 업데이트
+    if (comm_error == DXL_COMM_TIMEOUT || comm_error == DXL_COMM_RXFAIL) {
+        error_status_.updateConnectionStatus(false);
+    } else if (comm_error == DXL_COMM_NONE) {
+        error_status_.updateConnectionStatus(true);
+    }
+    
+    return (comm_error != DXL_COMM_NONE) || (proto_error != PROTO_NONE);
+}
+
+bool DXL_motor::checkHardwareErrorStatus() {
+    // Alert 비트가 설정된 경우에만 Hardware Error Status 읽기
+    if (!error_status_.alert_bit_set) {
+        return false;
+    }
+    
+    // Hardware Error Status 읽기
+    HardwareError hw_error = readAndAnalyzeHardwareError();
+    
+    // Phase 3 개선: 하드웨어 에러 우선순위 기반 업데이트
+    if (hw_error != HW_NONE) {
+        error_status_.updateHwErrorWithPriority(hw_error);
+        return true;
+    }
+    
+    return false;
+}
+
+void DXL_motor::updateErrorStatistics() {
+    uint32_t current_time = HAL_GetTick();  // STM32 시스템 틱 사용
+    
+    // 에러 발생 시간 및 카운트 업데이트
+    error_status_.updateErrorStats(current_time);
+    
+    // Phase 3: 글로벌 에러 로그에 추가
+    if (error_status_.hasError()) {
+        DXL_ErrorLogger::addErrorLog(sID_, error_status_.comm_error, 
+                                   error_status_.hw_error, error_status_.proto_error);
+    }
+    
+    // 연속 에러 체크 (타임아웃 에러의 경우)
+    if (error_status_.comm_error == DXL_COMM_TIMEOUT) {
+        if (error_status_.consecutive_errors >= DXL_ERROR_TIMEOUT_DISCONNECT_COUNT) {
+            // 연속 타임아웃으로 연결 해제 판정
+            error_status_.is_motor_connected = false;
+        }
+			} else {
+        // 타임아웃이 아닌 경우 연속 에러 카운트 리셋
+        error_status_.consecutive_errors = 0;
+	}
+}
+
 void DXL_motor::multiTurnInit(){
 	int dxl_comm_result = COMM_SUCCESS;
 	uint8_t dxl_error = 0;

@@ -190,6 +190,63 @@ public:
             dxlObjects[i]->resetErrorStatus();
         }
     }
+    
+    /* Phase 3: 실시간 모니터링 함수들 */
+    // 모든 연결된 모터에 대해 실시간 에러 체크 수행
+    void performRuntimeErrorCheckAll() {
+        for (size_t i = 1; i < maxSize; i++) {
+            dxlObjects[i]->performRuntimeErrorCheck();
+        }
+    }
+    
+    // 새로운 에러가 발생한 모터 ID 목록 반환
+    void getMotorsWithNewErrors(uint8_t* error_motor_ids, uint8_t* count) {
+        *count = 0;
+        for (size_t i = 1; i < maxSize && *count < 30; i++) {
+            if (dxlObjects[i]->hasError()) {
+                const DXL_ErrorStatus& status = dxlObjects[i]->getErrorStatus();
+                // 최근 에러가 있는지 확인 (예: 최근 1초 이내)
+                uint32_t current_time = HAL_GetTick();
+                if (status.last_error_time > 0 && 
+                    (current_time - status.last_error_time) < 1000) {
+                    error_motor_ids[(*count)++] = i;
+                }
+            }
+        }
+    }
+    
+    // 에러 발생 모터의 간단한 정보 출력 (디버깅용)
+    void printErrorSummary() const {
+        uint8_t error_count = 0;
+        uint8_t disconnected_count = 0;
+        uint8_t critical_count = 0;
+        
+        for (size_t i = 1; i < maxSize; i++) {
+            const DXL_ErrorStatus& status = dxlObjects[i]->getErrorStatus();
+            if (status.hasError()) {
+                error_count++;
+                if (status.isCriticalError()) {
+                    critical_count++;
+                }
+            }
+            if (!status.is_motor_connected) {
+                disconnected_count++;
+            }
+        }
+        
+        // STM32에서는 printf 대신 다른 방법 사용 가능
+        // printf("Error Summary - Total: %d, Critical: %d, Disconnected: %d\n", error_count, critical_count, disconnected_count);
+    }
+    
+    // Phase 3 개선: 글로벌 에러 로그 조회 기능
+    uint8_t getSystemErrorLogs(DXL_ErrorLogEntry* entries, uint8_t max_entries) const {
+        return DXL_ErrorLogger::getAllValidLogs(entries, max_entries);
+    }
+    
+    // 시스템 전체 에러 로그 초기화
+    void clearSystemErrorLogs() {
+        DXL_ErrorLogger::clearLogs();
+    }
 
 
     // 소멸자에서 동적으로 할당한 객체들의 메모리를 해제
