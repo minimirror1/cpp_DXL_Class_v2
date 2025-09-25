@@ -2,6 +2,7 @@
 #include "cpp_DXL_SDK_v2/src/DynamixelSDK.h"
 #include "DXL_Protocol.h"
 #include "DXL_Class.h"
+#include "DXL_ErrorTypes.h"
 
 
 DXL_motor::DXL_motor(uint8_t gID, uint8_t sID, MotorType motorType, Serial *serial) :
@@ -346,9 +347,101 @@ void DXL_motor::multiTurnInit(){
 	}
 }
 
+// =============================================================================
+// Phase 1: 에러 분석 함수들 구현
+// =============================================================================
 
+DXL_CommError DXL_motor::analyzeCommResult(int dxl_comm_result) {
+    switch (dxl_comm_result) {
+        case COMM_SUCCESS:          return DXL_COMM_NONE;
+        case COMM_PORT_BUSY:        return DXL_COMM_BUSY;
+        case COMM_TX_FAIL:          return DXL_COMM_TXFAIL;
+        case COMM_RX_FAIL:          return DXL_COMM_RXFAIL;
+        case COMM_TX_ERROR:         return DXL_COMM_TXERROR;
+        case COMM_RX_TIMEOUT:       return DXL_COMM_TIMEOUT;
+        case COMM_RX_CORRUPT:       return DXL_COMM_CORRUPT;
+        case COMM_NOT_AVAILABLE:    return DXL_COMM_NOT_AVAILABLE;
+        default:                    return DXL_COMM_UNKNOWN;
+    }
+}
 
+ProtocolError DXL_motor::analyzeStatusPacketError(uint8_t error_field) {
+    // Alert 비트 확인 및 설정 (개선: 항상 정확한 상태로 설정)
+    error_status_.alert_bit_set = (error_field & 0x80) != 0;
+    
+    // Error Number 추출 (Bit 6~0)
+    uint8_t error_number = error_field & 0x7F;
+    
+    switch (error_number) {
+        case 0x00:  return PROTO_NONE;
+        case 0x01:  return PROTO_RESULT_FAIL;
+        case 0x02:  return PROTO_INSTRUCTION;
+        case 0x03:  return PROTO_CRC;
+        case 0x04:  return PROTO_DATA_RANGE;
+        case 0x05:  return PROTO_DATA_LENGTH;
+        case 0x06:  return PROTO_DATA_LIMIT;
+        case 0x07:  return PROTO_ACCESS;
+        default:    return PROTO_NONE;  // 알 수 없는 에러 번호는 NONE으로 처리
+    }
+}
 
+HardwareError DXL_motor::readAndAnalyzeHardwareError() {
+    if (!error_status_.alert_bit_set) {
+        return HW_NONE;  // Alert 비트가 설정되지 않은 경우
+    }
+    
+    uint8_t hw_error_status = 0;
+    uint8_t dxl_error = 0;
+    
+    // Hardware Error Status(70) 읽기 (개선: 상수 사용)
+    int dxl_comm_result = packetHandler_->read1ByteTxRx(
+        portHandler_, sID_, DXL_HARDWARE_ERROR_STATUS_ADDR, &hw_error_status, &dxl_error);
+    
+    if (dxl_comm_result != COMM_SUCCESS) {
+        return HW_READ_ERROR;  // 통신 실패
+    }
+    
+    // 개선: dxl_error도 확인
+    if (dxl_error != 0) {
+        return HW_READ_ERROR;  // Status Packet에서 에러 발생
+    }
+    
+    // 각 비트 확인 (우선순위: 심각한 에러부터)
+    if (hw_error_status & 0x20) return HW_OVERLOAD;     // Bit 5: 과부하
+    if (hw_error_status & 0x10) return HW_ELECTRICAL;   // Bit 4: 전기적 충격
+    if (hw_error_status & 0x04) return HW_OVERHEATING;  // Bit 2: 과열
+    if (hw_error_status & 0x01) return HW_VOLTAGE;      // Bit 0: 전압
+    if (hw_error_status & 0x08) return HW_ENCODER;      // Bit 3: 엔코더
+    
+    // 다른 비트가 설정된 경우
+    if (hw_error_status != 0) {
+        return HW_UNKNOWN;  // 알 수 없는 하드웨어 에러
+    }
+    
+    return HW_NONE;  // 실제로는 에러 없음 (Alert 비트 오류?)
+}
+
+void DXL_motor::detectAndClassifyErrors(int comm_result, uint8_t error_field) {
+    // 이전 에러 상태 초기화 (Alert 비트 제외)
+    error_status_.comm_error = DXL_COMM_NONE;
+    error_status_.proto_error = PROTO_NONE;
+    error_status_.hw_error = HW_NONE;
+    
+    // 통신 에러 분석
+    error_status_.comm_error = analyzeCommResult(comm_result);
+    
+    // 프로토콜 에러 분석 (Alert 비트도 함께 처리)
+    error_status_.proto_error = analyzeStatusPacketError(error_field);
+    
+    // 하드웨어 에러 분석 (Alert 비트가 설정된 경우만)
+    if (error_status_.alert_bit_set) {
+        error_status_.hw_error = readAndAnalyzeHardwareError();
+    }
+    
+    // 개선: 구조체 내부 함수 사용으로 코드 간소화
+    error_status_.updateErrorStats(HAL_GetTick());
+    error_status_.updateConnectionStatus();
+}
 
 
 

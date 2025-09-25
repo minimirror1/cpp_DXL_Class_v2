@@ -13,6 +13,8 @@
 #include "cpp_Motor_Class_v2/Motor.h"
 #include "cpp_DXL_SDK_v2/src/DynamixelSDK.h"
 #include "DXL_Protocol.h"
+#include "DXL_ErrorTypes.h"
+#include "DXL_ErrorConverter.h"
 
 #include "UART_Class.h"
 
@@ -77,6 +79,23 @@ public:
 
     void multiTurnInit();
 
+    /* Phase 1: 에러 분석 함수들 */
+    DXL_CommError analyzeCommResult(int dxl_comm_result);
+    ProtocolError analyzeStatusPacketError(uint8_t error_field);
+    HardwareError readAndAnalyzeHardwareError();
+    void detectAndClassifyErrors(int comm_result, uint8_t error_field);
+    
+    /* 에러 상태 관리 */
+    const DXL_ErrorStatus& getErrorStatus() const { return error_status_; }
+    void resetErrorStatus() { error_status_.reset(); }
+    bool hasError() const { return error_status_.hasError(); }
+    bool isCriticalError() const { return error_status_.isCriticalError(); }
+    
+    /* 상위 전달용 에러 코드 변환 */
+    const char* getErrorCode() const { 
+        return DXL_ErrorConverter::convertToErrorCode(error_status_); 
+    }
+
 private:
     /* 속성 */
 	bool f_assign;	//true : 할당됨, false : 할당안됨
@@ -87,6 +106,7 @@ private:
 	dynamixel::PacketHandler *packetHandler_;
 
 	DXL_Setting dxl_setting_;
+	DXL_ErrorStatus error_status_;  // Phase 1: 에러 상태 관리
 
 	Tick com_limit;
 
