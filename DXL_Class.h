@@ -76,6 +76,7 @@ public:
 
     /* 공통 funtion */
     void init() override;		//Motor Active
+    InitResult improvedInit();  // Phase 2: 개선된 초기화 (에러 분류 포함)
 
     void multiTurnInit();
 

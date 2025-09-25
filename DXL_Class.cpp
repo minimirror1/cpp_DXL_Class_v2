@@ -122,116 +122,28 @@ int32_t DXL_motor::getDefaultPosi() const
 /* 공통 funtion */
 void DXL_motor::init()
 {
-	int dxl_comm_result = COMM_SUCCESS;
-	uint8_t dxl_error = 0;
-
-	operatingStatus_ = Status_Init;
-
-	//led off
-	packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_LED, 0, &dxl_error);
-	osDelay(10);
-	packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_LED, 0, &dxl_error);
-	osDelay(10);
-	//rs485 응답 lv - 2 : 모든 패킷에 응답
-	packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_STATUS_RETURN_LV, 2, &dxl_error);
-	//torque off
-    for (int retryCount = 0; retryCount < 5; ++retryCount) {
-        dxl_comm_result = packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_TORQUE_ENABLE, TORQUE_DISABLE, &dxl_error);
-        if (dxl_comm_result == COMM_SUCCESS) {
-            break; // 성공하면 루프 탈출
-        } else {
-            osDelay(10); // 실패한 경우 재시도 전에 딜레이 추가 (필요에 따라 조정)
-        }
+    // Phase 2: 개선된 초기화 사용 (기존 순서와 항목 정확히 유지)
+    InitResult result = improvedInit();
+    
+    // 결과에 따른 상태 설정 (기존 예외처리 구조 유지)
+    switch (result) {
+        case INIT_SUCCESS:
+            // 이미 improvedInit()에서 Status_PreRun으로 설정됨
+            break;
+            
+        case INIT_NOT_CONNECTED:
+        case INIT_COMM_FAIL:
+        case INIT_HW_ERROR:
+        case INIT_PROTO_ERROR:
+        case INIT_TIMEOUT:
+        default:
+            // 모든 실패 경우는 Status_InitError로 설정 (상위에서 예외처리)
+            operatingStatus_ = Status_InitError;
+            break;
     }
-
-	//drive mode(10) - 0x04 : Time-based Profile
-    for (int retryCount = 0; retryCount < 5; ++retryCount) {
-        dxl_comm_result = packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_DRIVE_MODE, 4, &dxl_error);
-        if (dxl_comm_result == COMM_SUCCESS) {
-            break; // 성공하면 루프 탈출
-        } else {
-            osDelay(10); // 실패한 경우 재시도 전에 딜레이 추가 (필요에 따라 조정)
-        }
-    }
-
-	//overating mode(11) - 0x03 : Position control
-    for (int retryCount = 0; retryCount < 5; ++retryCount) {
-        dxl_comm_result = packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_OPERATING_MODE, 3, &dxl_error);
-        if (dxl_comm_result == COMM_SUCCESS) {
-            break; // 성공하면 루프 탈출
-        } else {
-            osDelay(10); // 실패한 경우 재시도 전에 딜레이 추가 (필요에 따라 조정)
-        }
-    }
-
-	//profile acc(108) - 25 : 가속 목표 시간 25ms
-    for (int retryCount = 0; retryCount < 5; ++retryCount) {
-		dxl_comm_result = packetHandler_->write4ByteTxRx(portHandler_, sID_, ADDR_PRO_ACCELE, 25, &dxl_error);
-		if (dxl_comm_result == COMM_SUCCESS) {
-			break; // 성공하면 루프 탈출
-		} else {
-			osDelay(10); // 실패한 경우 재시도 전에 딜레이 추가 (필요에 따라 조정)
-		}
-	}
-
-	//profile velocity(112) - 50 : 도달 목표 시간 50ms
-    for (int retryCount = 0; retryCount < 5; ++retryCount) {
-		dxl_comm_result = packetHandler_->write4ByteTxRx(portHandler_, sID_, ADDR_PRO_VELOCITY, 50, &dxl_error);
-		if (dxl_comm_result == COMM_SUCCESS) {
-			break; // 성공하면 루프 탈출
-		} else {
-			osDelay(10); // 실패한 경우 재시도 전에 딜레이 추가 (필요에 따라 조정)
-		}
-	}
-
-	//torque on
-    for (int retryCount = 0; retryCount < 5; ++retryCount) {
-    	dxl_comm_result = packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_TORQUE_ENABLE, TORQUE_ENABLE, &dxl_error);
-		if (dxl_comm_result == COMM_SUCCESS) {
-			break; // 성공하면 루프 탈출
-		} else {
-			if(retryCount >= 4)
-				operatingStatus_ = Status_InitError;
-			osDelay(10); // 실패한 경우 재시도 전에 딜레이 추가 (필요에 따라 조정)
-		}
-	}
-
-	osDelay(10);
-
-
-	for (int retryCount = 0; retryCount < 5; ++retryCount) {
-		dxl_comm_result = packetHandler_->read4ByteTxRx(portHandler_, sID_, ADDR_PRO_PRESENT_POSITION,(uint32_t*)&monitor_.raw_current_posi, &dxl_error);
-		if (dxl_comm_result == COMM_SUCCESS) {
-			monitor_.raw_command_posi = monitor_.raw_current_posi;
-			break; // 성공하면 루프 탈출
-		} else {
-			if(retryCount >= 4)
-				operatingStatus_ = Status_InitError;
-			osDelay(10); // 실패한 경우 재시도 전에 딜레이 추가 (필요에 따라 조정)
-		}
-	}
-
-	//status return lv (68) - 1 : 읽기 명령에만 응답
-	for (int retryCount = 0; retryCount < 5; ++retryCount) {
-		dxl_comm_result = packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_STATUS_RETURN_LV, 1, &dxl_error);
-		if (dxl_comm_result == COMM_SUCCESS) {
-			break; // 성공하면 루프 탈출
-		} else {
-			osDelay(10); // 실패한 경우 재시도 전에 딜레이 추가 (필요에 따라 조정)
-		}
-	}
-
-	if(operatingStatus_ == Status_Init){
-		operatingStatus_ = Status_PreRun;
-		for (int retryCount = 0; retryCount < 5; ++retryCount) {
-			dxl_comm_result = packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_LED, 1, &dxl_error);
-			if (dxl_comm_result == COMM_SUCCESS) {
-				break; // 성공하면 루프 탈출
-			} else {
-				osDelay(10); // 실패한 경우 재시도 전에 딜레이 추가 (필요에 따라 조정)
-			}
-		}
-	}
+    
+    // Phase 2: 에러 정보를 구체적으로 저장하여 나중에 상위로 전달 가능
+    // (기존 코드와 호환성 유지)
 }
 
 void DXL_motor::multiTurnInit(){
@@ -348,6 +260,171 @@ void DXL_motor::multiTurnInit(){
 }
 
 // =============================================================================
+// Phase 2: 개선된 초기화 로직 구현
+// =============================================================================
+
+InitResult DXL_motor::improvedInit() {
+    int dxl_comm_result = COMM_SUCCESS;
+    uint8_t dxl_error = 0;
+    const int max_retries = 5;  // 기존과 동일한 재시도 횟수
+    
+    // 에러 상태 초기화
+    error_status_.reset();
+    operatingStatus_ = Status_Init;
+    
+    // === 기존 초기화 순서 정확히 따르기 ===
+    
+    // 1단계: LED OFF (기존과 동일: 2번 실행)
+    dxl_comm_result = packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_LED, 0, &dxl_error);
+    detectAndClassifyErrors(dxl_comm_result, dxl_error);
+    osDelay(10);
+    dxl_comm_result = packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_LED, 0, &dxl_error);
+    detectAndClassifyErrors(dxl_comm_result, dxl_error);
+    osDelay(10);
+    
+    // 통신 실패 시 조기 반환
+    if (dxl_comm_result != COMM_SUCCESS) {
+        if (dxl_comm_result == COMM_RX_TIMEOUT || dxl_comm_result == COMM_RX_FAIL) {
+            operatingStatus_ = Status_InitError;
+            return INIT_NOT_CONNECTED;
+        } else {
+            operatingStatus_ = Status_InitError;
+            return INIT_COMM_FAIL;
+        }
+    }
+    
+    // 2단계: Status Return Level = 2 (모든 패킷에 응답)
+    dxl_comm_result = packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_STATUS_RETURN_LV, 2, &dxl_error);
+    detectAndClassifyErrors(dxl_comm_result, dxl_error);
+    
+    if (dxl_comm_result != COMM_SUCCESS || dxl_error != 0) {
+        operatingStatus_ = Status_InitError;
+        return (dxl_comm_result != COMM_SUCCESS) ? INIT_COMM_FAIL : INIT_PROTO_ERROR;
+    }
+    
+    // 3단계: Torque OFF (기존과 동일한 재시도 로직)
+    for (int retryCount = 0; retryCount < max_retries; ++retryCount) {
+        dxl_comm_result = packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_TORQUE_ENABLE, TORQUE_DISABLE, &dxl_error);
+        detectAndClassifyErrors(dxl_comm_result, dxl_error);
+        if (dxl_comm_result == COMM_SUCCESS) {
+            break;
+        } else {
+            osDelay(10);
+        }
+    }
+    
+    if (dxl_comm_result != COMM_SUCCESS) {
+        operatingStatus_ = Status_InitError;
+        return INIT_COMM_FAIL;
+    }
+    
+    // 4단계: Drive Mode = 4 (Time-based Profile)
+    for (int retryCount = 0; retryCount < max_retries; ++retryCount) {
+        dxl_comm_result = packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_DRIVE_MODE, 4, &dxl_error);
+        detectAndClassifyErrors(dxl_comm_result, dxl_error);
+        if (dxl_comm_result == COMM_SUCCESS) {
+            break;
+        } else {
+            osDelay(10);
+        }
+    }
+    
+    // 5단계: Operating Mode = 3 (Position Control Mode)
+    for (int retryCount = 0; retryCount < max_retries; ++retryCount) {
+        dxl_comm_result = packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_OPERATING_MODE, 3, &dxl_error);
+        detectAndClassifyErrors(dxl_comm_result, dxl_error);
+        if (dxl_comm_result == COMM_SUCCESS) {
+            break;
+        } else {
+            osDelay(10);
+        }
+    }
+    
+    // 6단계: Profile Acceleration = 25 (4Byte 값)
+    for (int retryCount = 0; retryCount < max_retries; ++retryCount) {
+        dxl_comm_result = packetHandler_->write4ByteTxRx(portHandler_, sID_, ADDR_PRO_ACCELE, 25, &dxl_error);
+        detectAndClassifyErrors(dxl_comm_result, dxl_error);
+        if (dxl_comm_result == COMM_SUCCESS) {
+            break;
+        } else {
+            osDelay(10);
+        }
+    }
+    
+    // 7단계: Profile Velocity = 50 (4Byte 값)
+    for (int retryCount = 0; retryCount < max_retries; ++retryCount) {
+        dxl_comm_result = packetHandler_->write4ByteTxRx(portHandler_, sID_, ADDR_PRO_VELOCITY, 50, &dxl_error);
+        detectAndClassifyErrors(dxl_comm_result, dxl_error);
+        if (dxl_comm_result == COMM_SUCCESS) {
+            break;
+        } else {
+            osDelay(10);
+        }
+    }
+    
+    // 8단계: Torque ON
+    for (int retryCount = 0; retryCount < max_retries; ++retryCount) {
+        dxl_comm_result = packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_TORQUE_ENABLE, TORQUE_ENABLE, &dxl_error);
+        detectAndClassifyErrors(dxl_comm_result, dxl_error);
+        if (dxl_comm_result == COMM_SUCCESS) {
+            break;
+        } else {
+            if(retryCount >= 4)
+                operatingStatus_ = Status_InitError;
+            osDelay(10);
+        }
+    }
+    
+    osDelay(10);
+    
+    // 9단계: 현재 위치 읽기
+    for (int retryCount = 0; retryCount < max_retries; ++retryCount) {
+        dxl_comm_result = packetHandler_->read4ByteTxRx(portHandler_, sID_, ADDR_PRO_PRESENT_POSITION, (uint32_t*)&monitor_.raw_current_posi, &dxl_error);
+        detectAndClassifyErrors(dxl_comm_result, dxl_error);
+        if (dxl_comm_result == COMM_SUCCESS) {
+            monitor_.raw_command_posi = monitor_.raw_current_posi;
+            break;
+        } else {
+            if(retryCount >= 4)
+                operatingStatus_ = Status_InitError;
+            osDelay(10);
+        }
+    }
+    
+    // 10단계: Status Return Level = 1 (읽기 명령에만 응답)
+    for (int retryCount = 0; retryCount < max_retries; ++retryCount) {
+        dxl_comm_result = packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_STATUS_RETURN_LV, 1, &dxl_error);
+        detectAndClassifyErrors(dxl_comm_result, dxl_error);
+        if (dxl_comm_result == COMM_SUCCESS) {
+            break;
+        } else {
+            osDelay(10);
+        }
+    }
+    
+    // 11단계: 성공 시 상태 변경 및 LED ON
+    if(operatingStatus_ == Status_Init){
+        operatingStatus_ = Status_PreRun;
+        error_status_.is_motor_connected = true;
+        
+        for (int retryCount = 0; retryCount < max_retries; ++retryCount) {
+            dxl_comm_result = packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_LED, 1, &dxl_error);
+            if (dxl_comm_result == COMM_SUCCESS) {
+                break;
+            } else {
+                osDelay(10);
+            }
+        }
+        
+        return INIT_SUCCESS;
+    }
+    
+    // 초기화 실패
+    operatingStatus_ = Status_InitError;
+    return INIT_COMM_FAIL;
+}
+
+// =============================================================================
 // Phase 1: 에러 분석 함수들 구현
 // =============================================================================
 
@@ -442,6 +519,7 @@ void DXL_motor::detectAndClassifyErrors(int comm_result, uint8_t error_field) {
     error_status_.updateErrorStats(HAL_GetTick());
     error_status_.updateConnectionStatus();
 }
+
 
 
 

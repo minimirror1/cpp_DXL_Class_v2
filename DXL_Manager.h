@@ -39,6 +39,15 @@ public:
             dxlObjects[i]->init();
         }
     }
+    
+    // Phase 2: 개선된 초기화 함수 (에러 정보 포함)
+    void improvedInitializeAll() {
+        for (size_t i = 1; i < maxSize; i++) {
+            InitResult result = dxlObjects[i]->improvedInit();
+            // 결과는 각 모터의 error_status_에 저장됨
+            // 필요시 로그나 상위 시스템에 전달 가능
+        }
+    }
     void initializeAll_MultiTrun() {
            for (size_t i = 1; i < 3; i++) {
                dxlObjects[i]->multiTurnInit();
@@ -121,6 +130,65 @@ public:
     	if (0 < sid && sid < maxSize) { //sid = index
 			dxlObjects[sid]->defaultPosi_Ready();
 		}
+    }
+    
+    /* Phase 2: 에러 상태 관리 함수들 */
+    // 특정 모터의 에러 상태 확인
+    const DXL_ErrorStatus& getMotorErrorStatus(uint8_t sid) const {
+        if (0 < sid && sid < maxSize) {
+            return dxlObjects[sid]->getErrorStatus();
+        }
+        // 잘못된 인덱스의 경우 기본 에러 상태 반환
+        static DXL_ErrorStatus default_error;
+        return default_error;
+    }
+    
+    // 특정 모터의 4글자 에러 코드 확인
+    const char* getMotorErrorCode(uint8_t sid) const {
+        if (0 < sid && sid < maxSize) {
+            return dxlObjects[sid]->getErrorCode();
+        }
+        return "INVD"; // Invalid ID
+    }
+    
+    // 모든 모터의 에러 상태 확인
+    bool hasAnyError() const {
+        for (size_t i = 1; i < maxSize; i++) {
+            if (dxlObjects[i]->hasError()) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    // 심각한 에러가 있는 모터 개수 확인
+    uint8_t getCriticalErrorCount() const {
+        uint8_t count = 0;
+        for (size_t i = 1; i < maxSize; i++) {
+            if (dxlObjects[i]->isCriticalError()) {
+                count++;
+            }
+        }
+        return count;
+    }
+    
+    // 연결되지 않은 모터 개수 확인
+    uint8_t getDisconnectedMotorCount() const {
+        uint8_t count = 0;
+        for (size_t i = 1; i < maxSize; i++) {
+            const DXL_ErrorStatus& status = dxlObjects[i]->getErrorStatus();
+            if (!status.is_motor_connected) {
+                count++;
+            }
+        }
+        return count;
+    }
+    
+    // 모든 모터의 에러 상태 초기화
+    void resetAllErrorStatus() {
+        for (size_t i = 1; i < maxSize; i++) {
+            dxlObjects[i]->resetErrorStatus();
+        }
     }
 
 
