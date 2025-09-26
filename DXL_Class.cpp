@@ -15,6 +15,7 @@ DXL_motor::DXL_motor(uint8_t gID, uint8_t sID, MotorType motorType, Serial *seri
 
 	portHandler_ = dynamixel::PortHandler::getPortHandler(DEVICENAME, serial_);
 	packetHandler_ = dynamixel::PacketHandler::getPacketHandler(protocol_version_);
+
 }
 
 /* Motor Class 상속 */
@@ -115,6 +116,33 @@ int32_t DXL_motor::getDefaultPosi() const
 {
     int32_t cntCalc = (float)dxl_setting_.homeCnt_ + (dxl_setting_.rangeCnt_ * (float)setting_.initPosi/4095);
     return cntCalc;
+}
+
+uint8_t DXL_motor::getHardwareErrorStatus() const
+{
+    // 할당되지 않은 모터의 경우 bit7 = 1
+    if(!f_assign) {
+        return HW_ERROR_NOT_ASSIGNED;
+    }
+    
+    uint8_t hardware_error_status = 0;
+    uint8_t dxl_error = 0;
+    int dxl_comm_result = COMM_SUCCESS;
+    
+    dxl_comm_result = packetHandler_->read1ByteTxRx(
+        portHandler_, 
+        sID_, 
+        ADDR_PRO_HARDWARE_ERROR_STATUS, 
+        &hardware_error_status, 
+        &dxl_error
+    );
+
+    if (dxl_comm_result == COMM_SUCCESS) {
+        return hardware_error_status;
+    }
+    else {
+        return HW_ERROR_COMM_FAILURE; // 통신 실패 시 bit6 = 1
+    }
 }
 
 
@@ -345,6 +373,7 @@ void DXL_motor::multiTurnInit(){
 		}
 	}
 }
+
 
 
 

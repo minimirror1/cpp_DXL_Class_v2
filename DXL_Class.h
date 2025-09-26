@@ -71,6 +71,9 @@ public:
     /* output 필수 기능*/
     uint16_t getCurrentPosition() const override ; 	//const 상태변경x 읽기전용
     int32_t getDefaultPosi() const override ;
+    
+    /* Hardware Error Status 관련 */
+    uint8_t getHardwareErrorStatus() const;             // Hardware Error Status 읽기
 
     /* 공통 funtion */
     void init() override;		//Motor Active
@@ -89,6 +92,5 @@ private:
 	DXL_Setting dxl_setting_;
 
 	Tick com_limit;
-
 };
 #endif /* INC_DXL_Class_H_ */

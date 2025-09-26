@@ -106,6 +106,15 @@ public:
     	return Motor::Status_None;
     }
 
+    // Hardware Error Status 관련 함수들
+    uint8_t getHardwareErrorStatus(uint8_t sid){
+    	if (0 < sid && sid < maxSize) {
+			return dxlObjects[sid]->getHardwareErrorStatus();
+		}
+    	return 0xFF; // 잘못된 인덱스인 경우
+    }
+    
+
     void setSettingInfo(uint8_t gid, uint8_t sid, uint8_t dir, uint16_t angle, uint16_t initPosi, uint16_t reducer_ratio){
     	if (0 < sid && sid < maxSize) { //sid = index
 			dxlObjects[sid]->setSettingInfo(gid, sid, dir, angle, initPosi, reducer_ratio);
