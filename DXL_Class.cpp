@@ -9,6 +9,7 @@ DXL_motor::DXL_motor(uint8_t gID, uint8_t sID, MotorType motorType, Serial *seri
 	// Set IDs and other parameters for DXL_motor
 	f_assign = false;
 	operatingStatus_ = Status_None;
+	commFailureCount = 0;  // 통신 실패 카운터 초기화
 
 	serial_= serial;
 	protocol_version_ = PROTOCOL_VERSION2;
@@ -138,10 +139,22 @@ uint8_t DXL_motor::getHardwareErrorStatus() const
     );
 
     if (dxl_comm_result == COMM_SUCCESS) {
+        // 통신 성공 시 실패 카운터 리셋
+        commFailureCount = 0;
         return hardware_error_status;
     }
     else {
-        return HW_ERROR_COMM_FAILURE; // 통신 실패 시 bit6 = 1
+        // 통신 실패 카운터 증가
+        commFailureCount++;
+        
+        // 3회 연속 실패 시에만 통신 실패 에러 반환
+        if(commFailureCount >= 3) {
+            return HW_ERROR_COMM_FAILURE; // 통신 실패 시 bit6 = 1
+        }
+        else {
+            // 아직 3회 미만이면 이전 상태 유지 (에러 없음으로 처리)
+            return 0;
+        }
     }
 }
 
@@ -154,11 +167,22 @@ void DXL_motor::init()
 
 	operatingStatus_ = Status_Init;
 
+
+    
+	for (int retryCount = 0; retryCount < 5; ++retryCount) {
+        dxl_comm_result = packetHandler_->reboot(portHandler_, sID_, &dxl_error);
+		if (dxl_comm_result == COMM_SUCCESS) {
+            break; // 성공하면 루프 탈출
+        } else {
+            osDelay(10); // 실패한 경우 재시도 전에 딜레이 추가 (필요에 따라 조정)
+        }
+    }
+
 	//led off
-	packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_LED, 0, &dxl_error);
-	osDelay(10);
-	packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_LED, 0, &dxl_error);
-	osDelay(10);
+//	packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_LED, 0, &dxl_error);
+//	osDelay(10);
+//	packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_LED, 0, &dxl_error);
+//	osDelay(10);
 	//rs485 응답 lv - 2 : 모든 패킷에 응답
 	packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_STATUS_RETURN_LV, 2, &dxl_error);
 	//torque off

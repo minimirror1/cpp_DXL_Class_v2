@@ -14,7 +14,12 @@
 
 class DXL_Manager {
 public:
-    DXL_Manager() = default;
+    DXL_Manager() {
+        // 배열 초기화 - nullptr로 초기화하여 안전성 확보
+        for (size_t i = 0; i < maxSize; i++) {
+            dxlObjects[i] = nullptr;
+        }
+    }
 
     // DXL_Class 객체를 추가하는 함수
     void addDXLObject(uint8_t gID, uint8_t sID, Motor::MotorType motorType, Serial *serial) {
@@ -36,41 +41,54 @@ public:
     // 모든 DXL_Class 객체의 초기화 함수 호출. 연결된 모터를 알 수 있다.
     void initializeAll() {
         for (size_t i = 1; i < maxSize; i++) {
-            dxlObjects[i]->init();
+            if (dxlObjects[i] != nullptr) {
+                dxlObjects[i]->init();
+            }
+        }
+    }
+    void initializeOne(uint8_t sid) {
+        if (0 < sid && sid < maxSize && dxlObjects[sid] != nullptr) {
+            dxlObjects[sid]->init();
         }
     }
     void initializeAll_MultiTrun() {
-           for (size_t i = 1; i < 3; i++) {
-               dxlObjects[i]->multiTurnInit();
-           }
-       }
+        for (size_t i = 1; i < 3; i++) {
+            if (dxlObjects[i] != nullptr) {
+                dxlObjects[i]->multiTurnInit();
+            }
+        }
+    }
 
 
     // 모든 DXL_Class 객체의 위치 동기화 함수 호출
     void syncAllPositions() {
         for (size_t i = 1; i < maxSize; i++) {
-            dxlObjects[i]->defaultPosi_Ready();
-            dxlObjects[i]->defaultPosi_Move();
+            if (dxlObjects[i] != nullptr) {
+                dxlObjects[i]->defaultPosi_Ready();
+                dxlObjects[i]->defaultPosi_Move();
+            }
         }
     }
 
     // 모든 DXL_Class 객체의 현재 위치를 출력하는 함수
     void printAllPositions() const {
         for (size_t i = 1; i < maxSize; i++) {
-            //std::cout << "Current Position: " << dxlObjects[i]->getPosition() << std::endl;
+            if (dxlObjects[i] != nullptr) {
+                //std::cout << "Current Position: " << dxlObjects[i]->getPosition() << std::endl;
+            }
         }
     }
 
     // 특정 DXL_Class 객체의 위치 설정 함수 호출
     void setPosition(uint8_t sid, uint16_t targetPosition ) {
-    	if (0 < sid && sid < maxSize) {
+    	if (0 < sid && sid < maxSize && dxlObjects[sid] != nullptr) {
             dxlObjects[sid]->setPosition(targetPosition);
         } else {
             //std::cout << "Invalid index!" << std::endl;
         }
     }
     void setRawPosition(uint8_t sid, int32_t rawCount){
-    	if (0 < sid && sid < maxSize) {
+    	if (0 < sid && sid < maxSize && dxlObjects[sid] != nullptr) {
 			dxlObjects[sid]->setRawPosition(rawCount);
 		} else {
 			//std::cout << "Invalid index!" << std::endl;
@@ -78,7 +96,7 @@ public:
     }
 
     void setJogMove(uint8_t sid, int32_t jogCounter ) {
-		if (0 < sid && sid < maxSize) {
+		if (0 < sid && sid < maxSize && dxlObjects[sid] != nullptr) {
 			dxlObjects[sid]->setJogMove(jogCounter);
 		} else {
 			//std::cout << "Invalid index!" << std::endl;
@@ -87,20 +105,24 @@ public:
 
     void allMotorProcess(void){
     	for (size_t i = 1; i < maxSize; i++) {
-			dxlObjects[i]->process();
+    		if (dxlObjects[i] != nullptr) {
+    			dxlObjects[i]->process();
+    		}
 		}
     }
 
     void allTimeCheckPosi(void){
     	for (size_t i = 1; i < maxSize; i++) {
-			dxlObjects[i]->timeCheckPosition();
+    		if (dxlObjects[i] != nullptr) {
+    			dxlObjects[i]->timeCheckPosition();
+    		}
 		}
     }
 
 
     /* index */
     Motor::Status getStatus(uint8_t gid, uint8_t sid){
-    	if (0 < gid && sid < maxSize) {
+    	if (0 < gid && sid < maxSize && dxlObjects[sid] != nullptr) {
 			return dxlObjects[sid]->getStatus(gid, sid);
 		}
     	return Motor::Status_None;
@@ -108,26 +130,26 @@ public:
 
     // Hardware Error Status 관련 함수들
     uint8_t getHardwareErrorStatus(uint8_t sid){
-    	if (0 < sid && sid < maxSize) {
+    	if (0 < sid && sid < maxSize && dxlObjects[sid] != nullptr) {
 			return dxlObjects[sid]->getHardwareErrorStatus();
 		}
-    	return 0xFF; // 잘못된 인덱스인 경우
+    	return 0xFF; // 잘못된 인덱스이거나 객체가 없는 경우
     }
     
 
     void setSettingInfo(uint8_t gid, uint8_t sid, uint8_t dir, uint16_t angle, uint16_t initPosi, uint16_t reducer_ratio){
-    	if (0 < sid && sid < maxSize) { //sid = index
+    	if (0 < sid && sid < maxSize && dxlObjects[sid] != nullptr) { //sid = index
 			dxlObjects[sid]->setSettingInfo(gid, sid, dir, angle, initPosi, reducer_ratio);
 		}
     }
     void setSettingData_op(uint8_t gid, uint8_t sid, uint32_t data_1, uint32_t data_2){
-    	if (0 < sid && sid < maxSize) { //sid = index
+    	if (0 < sid && sid < maxSize && dxlObjects[sid] != nullptr) { //sid = index
 			dxlObjects[sid]->setSettingData_op(gid, sid, data_1, data_2);
 		}
     }
 
     void setDefaultPosi_Ready(uint8_t gid, uint8_t sid){
-    	if (0 < sid && sid < maxSize) { //sid = index
+    	if (0 < sid && sid < maxSize && dxlObjects[sid] != nullptr) { //sid = index
 			dxlObjects[sid]->defaultPosi_Ready();
 		}
     }
@@ -136,12 +158,15 @@ public:
     // 소멸자에서 동적으로 할당한 객체들의 메모리를 해제
     ~DXL_Manager() {
         for (size_t i = 1; i < maxSize; i++) {
-            delete dxlObjects[i];
+            if (dxlObjects[i] != nullptr) {
+                delete dxlObjects[i];
+                dxlObjects[i] = nullptr;
+            }
         }
     }
 
 private:
-    static constexpr size_t maxSize = 31; // 최대 크기 지정
+    static constexpr size_t maxSize = 11; // 모터 ID 1~10 지원 (인덱스 0 미사용)
     DXL_motor *dxlObjects[maxSize];
 };
 

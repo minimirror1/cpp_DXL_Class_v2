@@ -92,5 +92,8 @@ private:
 	DXL_Setting dxl_setting_;
 
 	Tick com_limit;
+	
+	// 통신 실패 카운터 (const 함수에서 수정 가능하도록 mutable)
+	mutable uint8_t commFailureCount;
 };
 #endif /* INC_DXL_Class_H_ */
