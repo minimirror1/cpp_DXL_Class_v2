@@ -137,7 +137,7 @@ public:
     }
     
 
-    void setSettingInfo(uint8_t gid, uint8_t sid, uint8_t dir, uint16_t angle, uint16_t initPosi, uint16_t reducer_ratio){
+    void setSettingInfo(uint8_t gid, uint8_t sid, uint8_t dir, float angle, uint16_t initPosi, uint16_t reducer_ratio){
     	if (0 < sid && sid < maxSize && dxlObjects[sid] != nullptr) { //sid = index
 			dxlObjects[sid]->setSettingInfo(gid, sid, dir, angle, initPosi, reducer_ratio);
 		}

@@ -32,6 +32,8 @@ void DXL_motor::setSettingData_op(uint8_t gID, uint8_t sID, uint32_t data_1, uin
 
 		dxl_setting_.homeCnt_ = data_1;
 
+		// float -> int 변환에서 소수점 이하가 버려지나(반올림 아님) 오차가 최대 1카운트라 무시함.
+		// setting_.angle 은 float 이므로 여기까지 소수점 각도가 그대로 전달된다.
 		int tempLimitPosi = setting_.angle/360 * DXL_MAX_POSI;
 		dxl_setting_.rangeCnt_ = (setting_.dir == DXL_ROT_CW)? tempLimitPosi : -tempLimitPosi;
 
