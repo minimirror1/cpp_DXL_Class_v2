@@ -46,9 +46,16 @@ void DXL_motor::setPosition(int32_t targetPosition)
 {
 	if(!f_assign) return;
 
+	// 상위 명령 스케일(0 ~ MRS_CMD_MAX) 밖의 값은 경계로 고정한다.
+	// 수신 타입이 uint16_t 라 4095 를 넘는 값이 들어올 수 있으며, 그대로 두면
+	// ratio 가 1.0 을 넘어 설정된 구동 범위를 벗어난 카운트가 모터로 나간다.
+	// 여기서 막으면 raw 값은 [homeCnt_, homeCnt_ + rangeCnt_] 안에 머문다.
+	if(targetPosition < 0)			targetPosition = 0;
+	if(targetPosition > MRS_CMD_MAX)	targetPosition = MRS_CMD_MAX;
+
 	monitor_.mrs_current_posi = targetPosition;
 
-	float ratio = (float)targetPosition/4095;
+	float ratio = (float)targetPosition/MRS_CMD_MAX;
 	int temp_raw_posi = dxl_setting_.homeCnt_ + (dxl_setting_.rangeCnt_ * ratio);
 
 	if(monitor_.raw_command_posi != temp_raw_posi){
@@ -70,7 +77,7 @@ void DXL_motor::timeCheckPosition(){
 	if(!f_assign) return;
 
 	if(com_limit.delay(50)){
-		float ratio = (float)monitor_.mrs_current_posi/4095;
+		float ratio = (float)monitor_.mrs_current_posi/MRS_CMD_MAX;
 		int temp_raw_posi = dxl_setting_.homeCnt_ + (dxl_setting_.rangeCnt_ * ratio);
 
 		if(monitor_.raw_command_posi != temp_raw_posi){
@@ -87,6 +94,25 @@ void DXL_motor::setRawPosition(int32_t targetPosition){
 	packetHandler_->write4ByteTxOnly(portHandler_, sID_, ADDR_PRO_GOAL_POSITION, targetPosition);
 }
 
+/* TODO 조그 동작 재확인 필요 (미해결, 동작 확인 후 정리할 것)
+ *
+ * 1) 용도와 가드가 어긋남
+ *    조그는 구동 범위를 입력받기 전에 임의로 움직여보는 용도인데,
+ *    f_assign 은 setSettingData_op() 에서 homeCnt_/rangeCnt_ 를 설정할 때
+ *    비로소 true 가 된다. 즉 MRS_RX_DATA_OP 수신 전에는 조그가 아무 동작도
+ *    하지 않는다. 임시값으로 DATA1/DATA_OP 를 먼저 보내는 운용이라면
+ *    현행 유지가 맞고, 아니라면 가드 조건을 손봐야 한다.
+ *
+ * 2) 범위 검사 기준이 raw 카운트 기준의 0~4095 임
+ *    실제 구동 범위는 [homeCnt_, homeCnt_ + rangeCnt_] 이며 CCW 면
+ *    rangeCnt_ 가 음수라 상/하한이 뒤바뀐다. homeCnt_ 가 0 이 아니거나
+ *    CCW 인 경우 범위를 벗어난 조그가 허용되거나, 반대로 정상 구간인데도
+ *    차단될 수 있다. 1) 의 운용 방식이 확정되어야 올바른 기준을 정할 수 있음.
+ *
+ * 3) mrs_current_posi 를 갱신하지 않음
+ *    현재는 allTimeCheckPosi() 가 dxl_task.cpp 에서 비활성이라 무해하지만,
+ *    되살리면 50ms 뒤 timeCheckPosition() 이 조그 이전 위치로 되돌린다.
+ */
 void DXL_motor::setJogMove(int jogCounter){
 	if(!f_assign) return;
 
@@ -117,7 +143,7 @@ uint16_t DXL_motor::getCurrentPosition() const
 }
 int32_t DXL_motor::getDefaultPosi() const
 {
-    int32_t cntCalc = (float)dxl_setting_.homeCnt_ + (dxl_setting_.rangeCnt_ * (float)setting_.initPosi/4095);
+    int32_t cntCalc = (float)dxl_setting_.homeCnt_ + (dxl_setting_.rangeCnt_ * (float)setting_.initPosi/MRS_CMD_MAX);
     return cntCalc;
 }
 

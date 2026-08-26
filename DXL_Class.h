@@ -23,8 +23,12 @@
 #define DXLLIB_VERSION "0.0.2"	//버전, Jog 기능 추가
 
 
-/* 한바퀴 최대 카운트 */
+/* 한바퀴 최대 카운트 (모터 하드웨어 스펙) */
 #define DXL_MAX_POSI	4095
+/* 상위 위치 명령 스케일 0 ~ MRS_CMD_MAX (프로토콜 스펙)
+ * DXL_MAX_POSI 와 현재 값이 같지만 의미가 다르므로 분리해서 쓴다.
+ * 한쪽만 변경될 경우 조용히 어긋나는 것을 막기 위함. */
+#define MRS_CMD_MAX		4095
 /* Home 방향 표기*/
 #define DXL_ROT_CW		true
 #define DXL_ROT_CCW		false
