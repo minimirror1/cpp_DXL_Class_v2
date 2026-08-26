@@ -169,14 +169,25 @@ void DXL_motor::init()
 
 
     
-	for (int retryCount = 0; retryCount < 5; ++retryCount) {
-        dxl_comm_result = packetHandler_->reboot(portHandler_, sID_, &dxl_error);
-		if (dxl_comm_result == COMM_SUCCESS) {
-            break; // 성공하면 루프 탈출
-        } else {
-            osDelay(10); // 실패한 경우 재시도 전에 딜레이 추가 (필요에 따라 조정)
-        }
-    }
+	/* [사용 금지] reboot 비활성화
+	 *
+	 * reboot(INST_REBOOT)은 Dynamixel의 래치된 Hardware Error Status(주소 70)를
+	 * 클리어한다. init()이 호출될 때마다 에러 상태가 지워지므로
+	 * getHardwareErrorStatus()가 하드웨어 에러를 영영 검출하지 못한다.
+	 *
+	 * 이 코드를 비활성화한 뒤 에러 감지가 정상 동작함을 실기에서 확인함.
+	 * 아래 초기화 시퀀스가 필요한 레지스터를 모두 명시적으로 재설정하므로
+	 * reboot 없이도 초기화는 정상 완료된다.
+	 *
+	 * 다시 활성화하면 하드웨어 에러 감지가 다시 동작하지 않는다. */
+//	for (int retryCount = 0; retryCount < 5; ++retryCount) {
+//        dxl_comm_result = packetHandler_->reboot(portHandler_, sID_, &dxl_error);
+//		if (dxl_comm_result == COMM_SUCCESS) {
+//            break; // 성공하면 루프 탈출
+//        } else {
+//            osDelay(10); // 실패한 경우 재시도 전에 딜레이 추가 (필요에 따라 조정)
+//        }
+//    }
 
 	//led off
 //	packetHandler_->write1ByteTxRx(portHandler_, sID_, ADDR_PRO_LED, 0, &dxl_error);
