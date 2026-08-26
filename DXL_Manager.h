@@ -166,7 +166,7 @@ public:
     }
 
 private:
-    static constexpr size_t maxSize = 11; // 모터 ID 1~10 지원 (인덱스 0 미사용)
+    static constexpr size_t maxSize = 31; // 모터 ID 1~30 지원 (인덱스 0 미사용)
     DXL_motor *dxlObjects[maxSize];
 };
 
