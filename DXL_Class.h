@@ -71,6 +71,7 @@ public:
     /* output 필수 기능*/
     uint16_t getCurrentPosition() const override ; 	//const 상태변경x 읽기전용
     int32_t getDefaultPosi() const override ;
+    uint8_t getHardwareErrorStatus();				//hardware error status(addr 70) 읽기
 
     /* 공통 funtion */
     void init() override;		//Motor Active
@@ -89,6 +90,8 @@ private:
 	DXL_Setting dxl_setting_;
 
 	Tick com_limit;
+
+	uint8_t hwErrorStatus_;	//마지막으로 읽기에 성공한 hardware error status
 
 };
 #endif /* INC_DXL_Class_H_ */

@@ -123,6 +123,19 @@ public:
 		}
     }
 
+    uint8_t getHardwareErrorStatus(uint8_t sid){
+    	if (0 < sid && sid < maxSize) { //sid = index
+			return dxlObjects[sid]->getHardwareErrorStatus();
+		}
+    	return 0;
+    }
+
+    void initializeOne(uint8_t sid){
+    	if (0 < sid && sid < maxSize) { //sid = index
+			dxlObjects[sid]->init();
+		}
+    }
+
 
     // 소멸자에서 동적으로 할당한 객체들의 메모리를 해제
     ~DXL_Manager() {

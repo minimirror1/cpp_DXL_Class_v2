@@ -27,6 +27,7 @@
 #define ADDR_PRO_LED					65
 #define ADDR_PRO_GOAL_POSITION          116
 #define ADDR_PRO_PRESENT_POSITION       132
+#define ADDR_PRO_HARDWARE_ERROR         70
 
 #define TORQUE_ENABLE                   1                   // Value for enabling the torque
 #define TORQUE_DISABLE                  0                   // Value for disabling the torque

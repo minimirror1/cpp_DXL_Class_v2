@@ -9,6 +9,7 @@ DXL_motor::DXL_motor(uint8_t gID, uint8_t sID, MotorType motorType, Serial *seri
 	// Set IDs and other parameters for DXL_motor
 	f_assign = false;
 	operatingStatus_ = Status_None;
+	hwErrorStatus_ = 0;
 
 	serial_= serial;
 	protocol_version_ = PROTOCOL_VERSION2;
@@ -115,6 +116,23 @@ int32_t DXL_motor::getDefaultPosi() const
 {
     int32_t cntCalc = (float)dxl_setting_.homeCnt_ + (dxl_setting_.rangeCnt_ * (float)setting_.initPosi/4095);
     return cntCalc;
+}
+uint8_t DXL_motor::getHardwareErrorStatus()
+{
+	uint8_t dxl_error = 0;
+	uint8_t readData = 0;
+	int dxl_comm_result = COMM_SUCCESS;
+    for (int retryCount = 0; retryCount < 5; ++retryCount) {
+        dxl_comm_result = packetHandler_->read1ByteTxRx(portHandler_, sID_, ADDR_PRO_HARDWARE_ERROR, &readData, &dxl_error);
+        if (dxl_comm_result == COMM_SUCCESS) {
+            hwErrorStatus_ = readData; // 성공한 경우에만 갱신
+            break;
+        } else {
+            osDelay(10); // 실패한 경우 재시도 전에 딜레이
+        }
+    }
+
+    return hwErrorStatus_; // 읽기 실패 시 직전 성공값 유지
 }
 
 
