@@ -142,9 +142,11 @@ public:
 			dxlObjects[sid]->setSettingInfo(gid, sid, dir, angle, initPosi, reducer_ratio);
 		}
     }
-    void setSettingData_op(uint8_t gid, uint8_t sid, uint32_t data_1, uint32_t data_2){
+    void setSettingData_op(uint8_t gid, uint8_t sid,
+                           uint16_t caseNum, uint16_t minPosi,
+                           uint16_t refPosi, uint16_t maxPosi){
     	if (0 < sid && sid < maxSize && dxlObjects[sid] != nullptr) { //sid = index
-			dxlObjects[sid]->setSettingData_op(gid, sid, data_1, data_2);
+			dxlObjects[sid]->setSettingData_op(gid, sid, caseNum, minPosi, refPosi, maxPosi);
 		}
     }
 

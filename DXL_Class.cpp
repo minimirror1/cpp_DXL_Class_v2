@@ -11,6 +11,11 @@ DXL_motor::DXL_motor(uint8_t gID, uint8_t sID, MotorType motorType, Serial *seri
 	operatingStatus_ = Status_None;
 	commFailureCount = 0;  // 통신 실패 카운터 초기화
 
+	dxl_setting_.caseNum_ = 0;
+	dxl_setting_.p0_ = 0;
+	dxl_setting_.pMid_ = 0;
+	dxl_setting_.p4095_ = 0;
+
 	serial_= serial;
 	protocol_version_ = PROTOCOL_VERSION2;
 
@@ -19,26 +24,117 @@ DXL_motor::DXL_motor(uint8_t gID, uint8_t sID, MotorType motorType, Serial *seri
 
 }
 
+/* 매핑 대응점을 모터의 물리 위치 범위로 잘라낸다.
+ *
+ * Position control mode 의 유효 카운트는 0 ~ DXL_MAX_POSI 이다.
+ * 상위 설정값 조합에 따라 대응점이 이 범위를 벗어날 수 있는데
+ * (예: Case 1 에서 시작점 1000, 90도, 역방향이면 끝점이 -23),
+ * 그대로 두면 범위 밖 카운트가 모터로 나간다.
+ *
+ * 잘라낸 만큼 실제 구동 범위는 설정보다 좁아진다.
+ * 즉 이 클램프가 동작했다는 것은 상위 설정값이 모터 사양을 벗어났다는 뜻이며,
+ * 의도한 각도가 나오지 않으므로 설정값 자체를 점검해야 한다. */
+static int32_t clampToPosiRange(int32_t cnt)
+{
+	if(cnt < 0)				return 0;
+	if(cnt > DXL_MAX_POSI)	return DXL_MAX_POSI;
+	return cnt;
+}
+
 /* Motor Class 상속 */
 /* input 필수 기능 */
 //init
-void DXL_motor::setSettingData_op(uint8_t gID, uint8_t sID, uint32_t data_1, uint32_t data_2)
+void DXL_motor::setSettingData_op(uint8_t gID, uint8_t sID,
+                                  uint16_t caseNum, uint16_t minPosi,
+                                  uint16_t refPosi, uint16_t maxPosi)
 {
 	if(id_check(gID, sID) == false)
 		return;
 
-	//if(operatingStatus_ == Status_SettingInfo){
-		operatingStatus_ = Statis_SettingOk;
+	// 호출측(dxl_task)에서 이미 걸러내지만, 잘못된 값이 매핑에 반영되면
+	// 모터가 엉뚱한 위치로 움직이므로 여기서도 한 번 더 막는다.
+	if(isSupportedCase(caseNum) == false)
+		return;
 
-		dxl_setting_.homeCnt_ = data_1;
+	// float -> int 변환에서 소수점 이하가 버려지나(반올림 아님) 오차가 최대 1카운트라 무시함.
+	// setting_.angle 은 float 이므로 여기까지 소수점 각도가 그대로 전달된다.
+	// Case 2, 3 은 각도를 쓰지 않으므로 이 값이 의미를 갖지 않는다.
+	const float angleCnt = setting_.angle / 360 * DXL_MAX_POSI;
+	// Case 1, 4 의 각도를 어느 방향으로 펼칠지 결정한다.
+	const int32_t dirSign = (setting_.dir == DXL_ROT_CW)? 1 : -1;
 
-		// float -> int 변환에서 소수점 이하가 버려지나(반올림 아님) 오차가 최대 1카운트라 무시함.
-		// setting_.angle 은 float 이므로 여기까지 소수점 각도가 그대로 전달된다.
-		int tempLimitPosi = setting_.angle/360 * DXL_MAX_POSI;
-		dxl_setting_.rangeCnt_ = (setting_.dir == DXL_ROT_CW)? tempLimitPosi : -tempLimitPosi;
+	int32_t p0 = 0;
+	int32_t pMid = 0;
+	int32_t p4095 = 0;
 
-		f_assign = true;
-	//}
+	switch(caseNum)
+	{
+	case DXL_MAP_CASE_START_ANGLE:
+		// 시작점에서 동작 각도만큼 펼친다.
+		p0    = (int32_t)refPosi;
+		p4095 = p0 + dirSign * (int32_t)angleCnt;
+		break;
+
+	case DXL_MAP_CASE_TWO_POINT:
+		// 양끝점을 그대로 사용한다. min > max 면 역방향이 된다.
+		p0    = (int32_t)minPosi;
+		p4095 = (int32_t)maxPosi;
+		break;
+
+	case DXL_MAP_CASE_THREE_POINT:
+		// 중앙점을 경계로 두 구간을 따로 매핑한다.
+		p0    = (int32_t)minPosi;
+		pMid  = (int32_t)refPosi;
+		p4095 = (int32_t)maxPosi;
+		break;
+
+	case DXL_MAP_CASE_CENTER_SYMMETRIC: {
+		// 중앙점 기준으로 전체 각도의 절반씩 양쪽으로 펼친다.
+		const int32_t halfCnt = (int32_t)(angleCnt / 2);
+		p0    = (int32_t)refPosi - dirSign * halfCnt;
+		p4095 = (int32_t)refPosi + dirSign * halfCnt;
+		break;
+	}
+
+	default:
+		return;
+	}
+
+	// 대응점을 모터 물리 범위로 고정한다. 세 점이 모두 범위 안이면
+	// 그 사이를 보간하는 mrsToRaw() 의 결과도 항상 범위 안에 머문다.
+	dxl_setting_.caseNum_ = caseNum;
+	dxl_setting_.p0_      = clampToPosiRange(p0);
+	dxl_setting_.pMid_    = clampToPosiRange(pMid);
+	dxl_setting_.p4095_   = clampToPosiRange(p4095);
+
+	// 상위 재부팅이나 설정값 변경으로 재수신될 수 있으므로 이전 상태와 무관하게 반영한다.
+	// 이미 Status_Run 이던 모터도 설정 수신 단계로 되돌려 초기위치 재이동을 거치게 한다.
+	operatingStatus_ = Statis_SettingOk;
+	f_assign = true;
+}
+
+/* 상위 명령값 -> 모터 raw 카운트 */
+int32_t DXL_motor::mrsToRaw(int32_t mrsCmd) const
+{
+	// 상위 명령 스케일(0 ~ MRS_CMD_MAX) 밖의 값은 경계로 고정한다.
+	// 수신 타입이 uint16_t 라 4095 를 넘는 값이 들어올 수 있으며, 그대로 두면
+	// 설정된 구동 범위를 벗어난 카운트가 모터로 나간다.
+	if(mrsCmd < 0)			mrsCmd = 0;
+	if(mrsCmd > MRS_CMD_MAX)	mrsCmd = MRS_CMD_MAX;
+
+	if(dxl_setting_.caseNum_ == DXL_MAP_CASE_THREE_POINT){
+		if(mrsCmd < MRS_CMD_MID){
+			return dxl_setting_.p0_
+				+ (int32_t)((float)(dxl_setting_.pMid_ - dxl_setting_.p0_) * mrsCmd / MRS_CMD_MID);
+		}
+		return dxl_setting_.pMid_
+			+ (int32_t)((float)(dxl_setting_.p4095_ - dxl_setting_.pMid_)
+				* (mrsCmd - MRS_CMD_MID) / (MRS_CMD_MAX - MRS_CMD_MID));
+	}
+
+	// Case 1, 2, 4 는 두 끝점 사이의 단일 선형 구간이다.
+	return dxl_setting_.p0_
+		+ (int32_t)((float)(dxl_setting_.p4095_ - dxl_setting_.p0_) * mrsCmd / MRS_CMD_MAX);
 }
 
 //control
@@ -46,17 +142,14 @@ void DXL_motor::setPosition(int32_t targetPosition)
 {
 	if(!f_assign) return;
 
-	// 상위 명령 스케일(0 ~ MRS_CMD_MAX) 밖의 값은 경계로 고정한다.
-	// 수신 타입이 uint16_t 라 4095 를 넘는 값이 들어올 수 있으며, 그대로 두면
-	// ratio 가 1.0 을 넘어 설정된 구동 범위를 벗어난 카운트가 모터로 나간다.
-	// 여기서 막으면 raw 값은 [homeCnt_, homeCnt_ + rangeCnt_] 안에 머문다.
+	// 클램프는 mrsToRaw() 안에서 처리하지만, 모니터 값에도 같은 범위를 남겨야
+	// timeCheckPosition() 이 재계산할 때 동일한 결과가 나온다.
 	if(targetPosition < 0)			targetPosition = 0;
 	if(targetPosition > MRS_CMD_MAX)	targetPosition = MRS_CMD_MAX;
 
 	monitor_.mrs_current_posi = targetPosition;
 
-	float ratio = (float)targetPosition/MRS_CMD_MAX;
-	int temp_raw_posi = dxl_setting_.homeCnt_ + (dxl_setting_.rangeCnt_ * ratio);
+	int32_t temp_raw_posi = mrsToRaw(targetPosition);
 
 	if(monitor_.raw_command_posi != temp_raw_posi){
 		monitor_.raw_command_posi = temp_raw_posi;
@@ -77,8 +170,7 @@ void DXL_motor::timeCheckPosition(){
 	if(!f_assign) return;
 
 	if(com_limit.delay(50)){
-		float ratio = (float)monitor_.mrs_current_posi/MRS_CMD_MAX;
-		int temp_raw_posi = dxl_setting_.homeCnt_ + (dxl_setting_.rangeCnt_ * ratio);
+		int32_t temp_raw_posi = mrsToRaw(monitor_.mrs_current_posi);
 
 		if(monitor_.raw_command_posi != temp_raw_posi){
 			monitor_.raw_command_posi = temp_raw_posi;
@@ -98,16 +190,16 @@ void DXL_motor::setRawPosition(int32_t targetPosition){
  *
  * 1) 용도와 가드가 어긋남
  *    조그는 구동 범위를 입력받기 전에 임의로 움직여보는 용도인데,
- *    f_assign 은 setSettingData_op() 에서 homeCnt_/rangeCnt_ 를 설정할 때
+ *    f_assign 은 setSettingData_op() 에서 매핑 대응점을 설정할 때
  *    비로소 true 가 된다. 즉 MRS_RX_DATA_OP 수신 전에는 조그가 아무 동작도
  *    하지 않는다. 임시값으로 DATA1/DATA_OP 를 먼저 보내는 운용이라면
  *    현행 유지가 맞고, 아니라면 가드 조건을 손봐야 한다.
  *
  * 2) 범위 검사 기준이 raw 카운트 기준의 0~4095 임
- *    실제 구동 범위는 [homeCnt_, homeCnt_ + rangeCnt_] 이며 CCW 면
- *    rangeCnt_ 가 음수라 상/하한이 뒤바뀐다. homeCnt_ 가 0 이 아니거나
- *    CCW 인 경우 범위를 벗어난 조그가 허용되거나, 반대로 정상 구간인데도
- *    차단될 수 있다. 1) 의 운용 방식이 확정되어야 올바른 기준을 정할 수 있음.
+ *    실제 구동 범위는 [p0_, p4095_] 이며 역방향이면 상/하한이 뒤바뀐다.
+ *    p0_ 가 0 이 아니거나 역방향인 경우 범위를 벗어난 조그가 허용되거나,
+ *    반대로 정상 구간인데도 차단될 수 있다.
+ *    1) 의 운용 방식이 확정되어야 올바른 기준을 정할 수 있음.
  *
  * 3) mrs_current_posi 를 갱신하지 않음
  *    현재는 allTimeCheckPosi() 가 dxl_task.cpp 에서 비활성이라 무해하지만,
@@ -143,8 +235,9 @@ uint16_t DXL_motor::getCurrentPosition() const
 }
 int32_t DXL_motor::getDefaultPosi() const
 {
-    int32_t cntCalc = (float)dxl_setting_.homeCnt_ + (dxl_setting_.rangeCnt_ * (float)setting_.initPosi/MRS_CMD_MAX);
-    return cntCalc;
+    // 초기 위치도 상위 명령값(DATA1 의 init_position)이므로 동작 중 명령과 같은 식으로 환산한다.
+    // Case 3 의 구간 분기도 그대로 적용된다.
+    return mrsToRaw(setting_.initPosi);
 }
 
 uint8_t DXL_motor::getHardwareErrorStatus() const
