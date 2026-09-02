@@ -120,6 +120,11 @@ public:
     /* Hardware Error Status 관련 */
     uint8_t getHardwareErrorStatus() const;             // Hardware Error Status 읽기
 
+    /* 마지막 Goal Position raw 카운트. 버스 접근 없음 */
+    int32_t getRawCommandPosition() const {
+    	return monitor_.raw_command_posi;
+    }
+
     /* 공통 funtion */
     void init() override;		//Motor Active
 

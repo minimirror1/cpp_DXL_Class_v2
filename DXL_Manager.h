@@ -135,6 +135,13 @@ public:
 		}
     	return 0xFF; // 잘못된 인덱스이거나 객체가 없는 경우
     }
+
+    int32_t getRawCommandPosition(uint8_t sid){
+    	if (0 < sid && sid < maxSize && dxlObjects[sid] != nullptr) {
+			return dxlObjects[sid]->getRawCommandPosition();
+		}
+    	return 0;
+    }
     
 
     void setSettingInfo(uint8_t gid, uint8_t sid, uint8_t dir, float angle, uint16_t initPosi, uint16_t reducer_ratio){
